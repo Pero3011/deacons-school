@@ -249,7 +249,7 @@ export default function AdminHome() {
                     </label>
                   </div>
 
-                  <label className="space-y-2 text-sm text-slate-700">
+                  <label className="space-y-2 text-sm text-slate-700 mb-2">
                     Number of Students
                     <input
                       type="number"
@@ -432,7 +432,9 @@ export default function AdminHome() {
           >
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex flex-wrap gap-x-2 items-center">
-                <span>Class Management /</span>
+                <span className="font-serif text-2xl font-bold text-primary md:text-3xl">
+                  Class Management /
+                </span>
                 <span
                   dir="rtl"
                   className="text-lg md:text-xl font-medium text-slate-600"
@@ -479,34 +481,56 @@ export default function AdminHome() {
                 <motion.button
                   key={cls.id}
                   onClick={() => handleFolderClick(cls.id)}
-                  whileTap={{ scale: 0.97 }}
-                  className={`rounded-xl border p-4 text-left shadow-sm transition-colors ${
-                    cls.muted ? "bg-slate-50 opacity-70" : "bg-white"
+                  whileTap={{ scale: 0.98 }}
+                  className={`relative mt-3 rounded-2xl border-2 p-6 text-left transition-all ${
+                    cls.muted ? "bg-slate-50 opacity-60" : "bg-white"
                   } ${
                     isSelected
-                      ? "border-amber-500 ring-2 ring-amber-200"
-                      : "border-slate-200 hover:border-slate-300"
+                      ? "border-[#1c2434] bg-white ring-4 ring-slate-100"
+                      : "border-[#1c2434] hover:bg-slate-50/50"
                   }`}
                 >
-                  <div className="mb-4 flex items-start justify-between">
+                  {/* Custom Folder Tab Element */}
+                  <div
+                    className={`absolute -top-2.25 left-6 h-2.5 w-32 bg-[#1c2434] transition-opacity ${
+                      cls.muted ? "opacity-60" : "opacity-100"
+                    }`}
+                    style={{
+                      clipPath: "polygon(0% 100%, 15% 0%, 85% 0%, 100% 100%)",
+                    }}
+                  />
+
+                  {/* Top Section: Folder Icon and Badge */}
+                  <div className="mb-6 flex items-start justify-between">
                     <Folder
-                      className={`h-6 w-6 ${cls.muted ? "text-slate-400" : "text-slate-500"}`}
+                      className={`h-9 w-9 stroke-[2.5] ${
+                        cls.muted ? "text-slate-400" : "text-[#1c2434]"
+                      }`}
                     />
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${cls.badgeColor}`}
+                      className={`rounded bg-[#e2eafc] px-3 py-1.5 text-[11px] font-bold tracking-wider text-[#1c2434] shrink-0 uppercase`}
                     >
-                      {cls.badge}
+                      {cls.badge || "ACTIVE"}
                     </span>
                   </div>
-                  <h4 className="text-sm font-bold text-slate-800 truncate">
-                    {cls.name}
-                  </h4>
-                  <p className="mb-3 text-xs text-slate-400 truncate" dir="rtl">
-                    {cls.nameAr}
-                  </p>
+
+                  {/* Middle Section: Typography */}
+                  <div className="mb-6">
+                    <h4 className="font-serif text-2xl font-normal text-[#1c2434] truncate">
+                      {cls.name}
+                    </h4>
+                    <p
+                      className="mt-1 text-base text-slate-600 truncate"
+                      dir="rtl"
+                    >
+                      {cls.nameAr}
+                    </p>
+                  </div>
+
+                  {/* Bottom Section: Student Count */}
                   {cls.students !== null && (
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <Users className="h-3.5 w-3.5" />
+                    <div className="flex items-center gap-2.5 text-base font-medium text-[#1c2434]">
+                      <Users className="h-5 w-5 text-amber-500 fill-amber-500/10 stroke-[2.5]" />
                       <span>{cls.students} Students</span>
                     </div>
                   )}

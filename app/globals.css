@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  /* Tailwind v4 maps theme colors using the --color-* namespace */
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-background: var(--background);
+  --color-on-background: var(--on-background);
+  /* Map any other custom colors you need here */
+
+
+}
+
+@layer base {
+  :root {
+    --primary: #112237;
+    --secondary: #D97706;
+    --background: #f8f9ff;
+    --on-background: #0d1c2e;
+  }
+}

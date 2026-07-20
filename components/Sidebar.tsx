@@ -155,14 +155,13 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             </motion.button>
 
             <div className="space-y-1">
-              <div className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60">
+              <Link
+                href={"/settings"}
+                className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60"
+              >
                 <Settings2 className="h-4 w-4 text-slate-500" />
                 <h4>Settings</h4>
-              </div>
-              <div className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60">
-                <HelpCircle className="h-4 w-4 text-slate-500" />
-                <h4>Help</h4>
-              </div>
+              </Link>
             </div>
           </div>
         </div>

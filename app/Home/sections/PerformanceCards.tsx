@@ -18,7 +18,7 @@ export default function PerformanceCards() {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3 h-100">
       {/* Weekly Performance Trends */}
-      <div className="rounded-xl border border-slate-200 bg-[#F8F9FE] p-5 md:col-span-2">
+      <div className="rounded-xl border border-slate-200 bg-[#F8F9FE] p-5 md:col-span-2 flex flex-col justify-between">
         <div className="mb-6 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-800">
             Weekly Performance Trends /{" "}
@@ -29,20 +29,26 @@ export default function PerformanceCards() {
           </button>
         </div>
 
-        <div className="flex h-full items-end justify-between gap-3">
+        {/* FIXED: Added a concrete height (h-40) or min-height, and set to w-full */}
+        <div className="flex h-40 w-full items-end justify-between gap-2 sm:gap-3">
           {weeklyData.map((item) => (
             <div
               key={item.day}
               className="flex h-full flex-1 flex-col justify-end items-center gap-2"
             >
-              <div
-                className={`w-full rounded-md ${
-                  item.isToday ? "bg-amber-400" : "bg-slate-300"
-                }`}
-                style={{ height: `${(item.value / maxValue) * 100}%` }}
-              />
+              {/* Bar wrapper to help contain the height correctly */}
+              <div className="w-full flex-1 flex items-end">
+                <div
+                  className={`w-full rounded-md transition-all duration-300 ${
+                    item.isToday ? "bg-amber-400" : "bg-slate-300"
+                  }`}
+                  style={{ height: `${(item.value / maxValue) * 100}%` }}
+                />
+              </div>
+
+              {/* Labels */}
               <span
-                className={`text-[10px] font-semibold ${
+                className={`text-[10px] font-bold tracking-wider ${
                   item.isToday ? "text-amber-600" : "text-slate-400"
                 }`}
               >

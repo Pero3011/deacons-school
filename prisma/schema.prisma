@@ -1,0 +1,120 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  Admin
+  SuperAdmin
+}
+
+enum Term {
+  Term1
+  Term2
+  Term3
+}
+
+enum AttendanceStatus {
+  Present
+  Absent
+  Excused
+}
+
+model User {
+  id            String   @id @default(uuid())
+  role          Role
+  nameAr        String
+  nameEn        String
+  email         String   @unique
+  password_hash String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  classes Classes[]
+}
+
+model Students {
+  id         String   @id @default(uuid())
+  nameAr     String
+  nameEn     String
+  classId    String
+  class      Classes  @relation(fields: [classId], references: [id])
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  marks       Marks[]
+  attendances Attendance[]
+}
+
+model Classes {
+  id         String   @id @default(uuid())
+  nameAr     String
+  nameEn     String
+  adminId    String
+  admin      User     @relation(fields: [adminId], references: [id])
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  students    Students[]
+  exams       Exams[]
+  attendances Attendance[]
+}
+
+model Subjects {
+  id     String @id @default(uuid())
+  nameAr String
+  nameEn String
+
+  exams Exams[]
+}
+
+model Exams {
+  id         String   @id @default(uuid())
+  classId    String
+  class      Classes  @relation(fields: [classId], references: [id])
+  subjectId String
+  subject   Subjects @relation(fields: [subjectId], references: [id])
+  nameAr     String
+  nameEn     String
+  maxMark    Int
+  term       Term
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  marks Marks[]
+
+  @@unique([classId,subjectId,term])
+}
+
+model Marks {
+  id            String   @id @default(uuid())
+  studentId     String
+  student       Students @relation(fields: [studentId], references: [id])
+  examId        String
+  exam          Exams    @relation(fields: [examId], references: [id])
+  obtainedMark  Float
+  updated_at    DateTime @updatedAt
+
+  @@unique([studentId, examId])
+}
+
+model Attendance {
+  id             String            @id @default(uuid())
+  studentId      String
+  student        Students          @relation(fields: [studentId], references: [id])
+  classId        String
+  class          Classes           @relation(fields: [classId], references: [id])
+  attendanceDate DateTime
+  status AttendanceStatus
+  term           Term
+  updated_at     DateTime          @updatedAt
+
+  @@unique([studentId, classId, attendanceDate])
+}

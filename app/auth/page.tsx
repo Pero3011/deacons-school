@@ -14,16 +14,6 @@ export default function Auth() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { language } = useLanguage();
 
-  const containerVariants = {
-    hidden: {},
-    show: {
-      transition: {
-        staggerChildren: 0.12,
-        delayChildren: 0.15,
-      },
-    },
-  };
-
   const itemVariants = {
     hidden: {
       opacity: 0,

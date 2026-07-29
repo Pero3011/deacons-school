@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+import { jwtVerify } from "jose";
 
-export function middleware(request: any) {
+export async function middleware(request: any) {
   const authHeader = request.headers.get("authorization");
   const token = authHeader?.split(" ")[1];
 
@@ -11,10 +11,11 @@ export function middleware(request: any) {
     if (!process.env.JWT_SECRET) {
       throw new Error("JWT_SECRET is undefined!");
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET) as {
-      userId: string;
-      role: string;
-    };
+
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+
+    const decoded = payload as { userId: string; role: string };
 
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-user-id", decoded.userId);
@@ -29,6 +30,7 @@ export function middleware(request: any) {
     return NextResponse.json({ error: "Invalid Token!" }, { status: 401 });
   }
 }
+
 export const config = {
   matcher: ["/api/((?!auth/login).*)"],
 };

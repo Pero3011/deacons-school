@@ -569,19 +569,30 @@ export default function AdminHome() {
                         </span>
                       </h4>
                     </div>
+
+                    {/* Actions Group */}
                     <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-slate-800 pt-3 sm:pt-0 sm:border-none">
-                      <button className="rounded-lg bg-[#8A5A1C] px-4 py-2 text-xs font-bold text-white hover:bg-[#764B14] shadow-sm">
+                      <button
+                        type="button"
+                        onClick={openAddStudentModal}
+                        className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-amber-600 shadow-sm"
+                      >
+                        Add Student
+                      </button>
+                      <button className="rounded-lg bg-[#8A5A1C] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-[#764B14] shadow-sm">
                         Download PDF
                       </button>
                       <button
                         onClick={() => setSelectedClassId(null)}
                         className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                        aria-label="Close roster view"
                       >
                         <X className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
 
+                  {/* Roster Table Content */}
                   <div className="overflow-x-auto w-full">
                     {selectedClass.roster.length > 0 ? (
                       <table className="w-full border-collapse text-sm table-auto">

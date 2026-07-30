@@ -4,7 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import { Folder, FolderPlus, Users, X } from "lucide-react";
 import PerformanceCards from "./sections/PerformanceCards";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 
 const classes = [
@@ -128,6 +128,40 @@ export default function AdminHome() {
   const [studentsPreview, setStudentsPreview] = useState<StudentPreview[]>([]);
   const [newStudentNameEn, setNewStudentNameEn] = useState("");
   const [newStudentNameAr, setNewStudentNameAr] = useState("");
+  const [availableStudents, setAvailableStudents] = useState<StudentPreview[]>(
+    [],
+  );
+  const [selectedStudentId, setSelectedStudentId] = useState<string>("");
+  const [isLoadingStudents, setIsLoadingStudents] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showAddClassModal || showAddStudentModal) {
+      setIsLoadingStudents(true);
+
+      fetch("/api/students")
+        .then(async (res) => {
+          const data = await res.json();
+
+          // If server responded with an error HTTP status or returned an error object
+          if (!res.ok || data.error) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+
+          return data;
+        })
+        .then((data) => {
+          // Guarantee state is an array even if API format changes
+          setAvailableStudents(Array.isArray(data) ? data : []);
+        })
+        .catch((err) => {
+          console.error("Couldn't fetch students:", err);
+          setAvailableStudents([]); // Fallback to empty list prevents .map crashes
+        })
+        .finally(() => {
+          setIsLoadingStudents(false);
+        });
+    }
+  }, [showAddClassModal, showAddStudentModal]);
 
   const selectedClass = classes.find((c) => c.id === selectedClassId) ?? null;
 
@@ -174,6 +208,66 @@ export default function AdminHome() {
       },
     ]);
     closeAddStudentModal();
+  };
+
+  const handleAddSelectedStudent = () => {
+    if (!selectedStudentId) return;
+
+    const found = availableStudents.find((s) => s.id === selectedStudentId);
+    if (!found) return;
+
+    // Prevent duplicate additions in the preview list
+    if (studentsPreview.some((s) => s.id === found.id)) return;
+
+    setStudentsPreview((prev) => [...prev, found]);
+    setSelectedStudentId("");
+    closeAddStudentModal();
+  };
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSaveClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/classes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nameEn: newClassName,
+          nameAr: newClassNameAr,
+          studentsPreview,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create class");
+      }
+
+      // Success: select the newly created class
+      setSelectedClassId(data.id);
+
+      // Reset form states
+      setNewClassName("");
+      setNewClassNameAr("");
+      setNewClassStudentCount("");
+      setStudentsPreview([]);
+
+      // Close the modal
+      setShowAddClassModal(false);
+    } catch (err: any) {
+      console.error("Error creating class:", err);
+      setError(err.message || "Failed to save class. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -322,12 +416,28 @@ export default function AdminHome() {
                   >
                     Cancel
                   </button>
+                  {error && (
+                    <p className="text-sm text-red-600 mb-2">{error}</p>
+                  )}
+
                   <button
                     type="button"
-                    onClick={closeAddClassModal}
-                    className="rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-600"
+                    onClick={handleSaveClass}
+                    disabled={
+                      isLoading ||
+                      !newClassName.trim() ||
+                      !newClassNameAr.trim()
+                    }
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Save Class
+                    {isLoading ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Class"
+                    )}
                   </button>
                 </div>
               </motion.div>
@@ -354,10 +464,10 @@ export default function AdminHome() {
                 <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">
-                      Add Student
+                      Select Student / اختيار طالب
                     </h3>
                     <p className="text-sm text-slate-500">
-                      Enter the student information below.
+                      Choose an existing student from the database.
                     </p>
                   </div>
                   <button
@@ -370,30 +480,25 @@ export default function AdminHome() {
                 </div>
 
                 <div className="space-y-4 px-6 py-6">
-                  <label className="space-y-2 text-sm text-slate-700">
-                    Name (EN)
-                    <input
-                      type="text"
-                      value={newStudentNameEn}
-                      onChange={(event) =>
-                        setNewStudentNameEn(event.target.value)
-                      }
-                      className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
-                      placeholder="Mina Kamal"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-slate-700">
-                    Name (AR)
-                    <input
-                      type="text"
-                      dir="rtl"
-                      value={newStudentNameAr}
-                      onChange={(event) =>
-                        setNewStudentNameAr(event.target.value)
-                      }
-                      className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
-                      placeholder="مينا كمال"
-                    />
+                  <label className="block space-y-2 text-sm font-medium text-slate-700">
+                    Student Name
+                    <select
+                      value={selectedStudentId}
+                      onChange={(e) => setSelectedStudentId(e.target.value)}
+                      disabled={isLoadingStudents}
+                      className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white disabled:opacity-50"
+                    >
+                      <option value="">
+                        {isLoadingStudents
+                          ? "Loading students..."
+                          : "-- Select a Student --"}
+                      </option>
+                      {availableStudents.map((student) => (
+                        <option key={student.id} value={student.id}>
+                          {student.nameEn} ({student.nameAr})
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
 
@@ -407,10 +512,11 @@ export default function AdminHome() {
                   </button>
                   <button
                     type="button"
-                    onClick={saveStudentPreview}
-                    className="rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-600"
+                    onClick={handleAddSelectedStudent}
+                    disabled={!selectedStudentId}
+                    className="rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:opacity-50"
                   >
-                    Save Student
+                    Add to Class
                   </button>
                 </div>
               </motion.div>

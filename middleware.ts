@@ -32,5 +32,5 @@ export async function middleware(request: any) {
 }
 
 export const config = {
-  matcher: ["/api/((?!auth/login).*)"],
+  matcher: ["/api/marks)"],
 };

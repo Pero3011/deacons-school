@@ -7,93 +7,6 @@ import PerformanceCards from "./sections/PerformanceCards";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 
-const classes = [
-  {
-    id: "grade-1",
-    name: "Grade 1",
-    nameAr: "المرحلة الأولى",
-    students: 24,
-    badge: "ACTIVE",
-    badgeColor: "bg-emerald-100 text-emerald-700",
-    muted: false,
-    roster: [
-      {
-        id: "DS-9021",
-        initials: "ME",
-        name: "Mark Ebrahim",
-        nameAr: "مارك ابراهيم",
-        avatarColor: "bg-blue-100 text-blue-700",
-        attendance: 92,
-        term1: "A+",
-        term2: "A",
-        term3: "A+",
-        status: "EXCELLENT",
-        statusColor: "bg-emerald-100 text-emerald-700",
-      },
-      {
-        id: "DS-9044",
-        initials: "SK",
-        name: "Sarah Kamel",
-        nameAr: "سارة كامل",
-        avatarColor: "bg-purple-100 text-purple-700",
-        attendance: 85,
-        term1: "A",
-        term2: "A",
-        term3: "A-",
-        status: "HONORS",
-        statusColor: "bg-sky-100 text-sky-700",
-      },
-      {
-        id: "DS-8812",
-        initials: "YA",
-        name: "Youssef Aziz",
-        nameAr: "يوسف عزيز",
-        avatarColor: "bg-amber-100 text-amber-700",
-        attendance: 76,
-        term1: "B+",
-        term2: "B",
-        term3: "B+",
-        status: "STEADY",
-        statusColor: "bg-indigo-100 text-indigo-600",
-      },
-    ],
-  },
-  {
-    id: "advanced-liturgy",
-    name: "Advanced Liturgy",
-    nameAr: "الطقس المتقدم",
-    students: 12,
-    badge: "ACTIVE",
-    badgeColor: "bg-emerald-100 text-emerald-700",
-    muted: false,
-    roster: [
-      {
-        id: "DS-9102",
-        initials: "MK",
-        name: "Mina Kamal",
-        nameAr: "مينا كمال",
-        avatarColor: "bg-rose-100 text-rose-700",
-        attendance: 88,
-        term1: "A",
-        term2: "A-",
-        term3: "A",
-        status: "HONORS",
-        statusColor: "bg-sky-100 text-sky-700",
-      },
-    ],
-  },
-  {
-    id: "graduates-23",
-    name: "Graduates '23",
-    nameAr: "خريجي ٢٠٢٣",
-    students: null,
-    badge: "ARCHIVED",
-    badgeColor: "bg-slate-100 text-slate-500",
-    muted: true,
-    roster: [],
-  },
-];
-
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
@@ -117,6 +30,47 @@ interface StudentPreview {
   nameAr: string;
 }
 
+interface RosterStudent {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+}
+
+interface ClassData {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+  _count?: { students: number };
+  students?: RosterStudent[];
+}
+
+// Deterministic avatar color + initials since these aren't stored yet
+const AVATAR_COLORS = [
+  "bg-blue-100 text-blue-700",
+  "bg-purple-100 text-purple-700",
+  "bg-amber-100 text-amber-700",
+  "bg-rose-100 text-rose-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-indigo-100 text-indigo-600",
+];
+
+function getInitials(nameEn: string) {
+  return nameEn
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function getAvatarColor(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash + id.charCodeAt(i)) % AVATAR_COLORS.length;
+  }
+  return AVATAR_COLORS[hash];
+}
+
 export default function AdminHome() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
@@ -126,14 +80,19 @@ export default function AdminHome() {
   const [newClassNameAr, setNewClassNameAr] = useState("");
   const [newClassStudentCount, setNewClassStudentCount] = useState("");
   const [studentsPreview, setStudentsPreview] = useState<StudentPreview[]>([]);
-  const [newStudentNameEn, setNewStudentNameEn] = useState("");
-  const [newStudentNameAr, setNewStudentNameAr] = useState("");
   const [availableStudents, setAvailableStudents] = useState<StudentPreview[]>(
     [],
   );
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [isLoadingStudents, setIsLoadingStudents] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [isLoadingClasses, setIsLoadingClasses] = useState(true);
+  const [classesError, setClassesError] = useState<string | null>(null);
+
+  // Fetch students for the "Select Student" dropdown when either modal is open
   useEffect(() => {
     if (showAddClassModal || showAddStudentModal) {
       setIsLoadingStudents(true);
@@ -141,27 +100,49 @@ export default function AdminHome() {
       fetch("/api/students")
         .then(async (res) => {
           const data = await res.json();
-
-          // If server responded with an error HTTP status or returned an error object
           if (!res.ok || data.error) {
             throw new Error(data.error || `HTTP ${res.status}`);
           }
-
           return data;
         })
         .then((data) => {
-          // Guarantee state is an array even if API format changes
           setAvailableStudents(Array.isArray(data) ? data : []);
         })
         .catch((err) => {
           console.error("Couldn't fetch students:", err);
-          setAvailableStudents([]); // Fallback to empty list prevents .map crashes
+          setAvailableStudents([]);
         })
         .finally(() => {
           setIsLoadingStudents(false);
         });
     }
   }, [showAddClassModal, showAddStudentModal]);
+
+  // Fetch classes once on mount
+  const fetchClasses = () => {
+    setIsLoadingClasses(true);
+    setClassesError(null);
+
+    fetch("/api/classes")
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        return data;
+      })
+      .then((data) => setClasses(Array.isArray(data) ? data : []))
+      .catch((err) => {
+        console.error("Couldn't fetch classes:", err);
+        setClassesError("Couldn't load classes.");
+        setClasses([]);
+      })
+      .finally(() => setIsLoadingClasses(false));
+  };
+
+  useEffect(() => {
+    fetchClasses();
+  }, []);
 
   const selectedClass = classes.find((c) => c.id === selectedClassId) ?? null;
 
@@ -180,8 +161,6 @@ export default function AdminHome() {
     setNewClassNameAr("");
     setNewClassStudentCount("");
     setStudentsPreview([]);
-    setNewStudentNameEn("");
-    setNewStudentNameAr("");
   };
 
   const openAddStudentModal = () => {
@@ -190,24 +169,6 @@ export default function AdminHome() {
 
   const closeAddStudentModal = () => {
     setShowAddStudentModal(false);
-    setNewStudentNameEn("");
-    setNewStudentNameAr("");
-  };
-
-  const saveStudentPreview = () => {
-    if (!newStudentNameEn.trim() || !newStudentNameAr.trim()) {
-      return;
-    }
-
-    setStudentsPreview((current) => [
-      ...current,
-      {
-        id: `S-${Date.now()}`,
-        nameEn: newStudentNameEn.trim(),
-        nameAr: newStudentNameAr.trim(),
-      },
-    ]);
-    closeAddStudentModal();
   };
 
   const handleAddSelectedStudent = () => {
@@ -216,16 +177,12 @@ export default function AdminHome() {
     const found = availableStudents.find((s) => s.id === selectedStudentId);
     if (!found) return;
 
-    // Prevent duplicate additions in the preview list
     if (studentsPreview.some((s) => s.id === found.id)) return;
 
     setStudentsPreview((prev) => [...prev, found]);
     setSelectedStudentId("");
     closeAddStudentModal();
   };
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSaveClass = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,16 +208,13 @@ export default function AdminHome() {
         throw new Error(data.error || "Failed to create class");
       }
 
-      // Success: select the newly created class
       setSelectedClassId(data.id);
+      fetchClasses();
 
-      // Reset form states
       setNewClassName("");
       setNewClassNameAr("");
       setNewClassStudentCount("");
       setStudentsPreview([]);
-
-      // Close the modal
       setShowAddClassModal(false);
     } catch (err: any) {
       console.error("Error creating class:", err);
@@ -272,12 +226,9 @@ export default function AdminHome() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Sidebar Component */}
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-      {/* Main Container Layer */}
       <div className="min-h-screen min-w-0 md:pl-72 flex flex-col">
-        {/* Topbar Component */}
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
         {/* Add New Class Modal */}
@@ -554,7 +505,6 @@ export default function AdminHome() {
               </p>
             </div>
 
-            {/* Current Semester */}
             <div className="text-left sm:text-right border-l-2 sm:border-l-0 sm:border-r-2 border-amber-500 pl-3 sm:pl-0 sm:pr-3 py-0.5 self-start sm:self-auto">
               <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                 Current Semester
@@ -581,68 +531,68 @@ export default function AdminHome() {
               <h4 className="text-sm font-bold">Add New Class</h4>
             </button>
 
-            {classes.map((cls) => {
-              const isSelected = selectedClassId === cls.id;
-              return (
-                <motion.button
-                  key={cls.id}
-                  onClick={() => handleFolderClick(cls.id)}
-                  whileTap={{ scale: 0.98 }}
-                  className={`relative mt-3 rounded-2xl border-2 p-6 text-left transition-all ${
-                    cls.muted ? "bg-slate-50 opacity-60" : "bg-white"
-                  } ${
-                    isSelected
-                      ? "border-[#1c2434] bg-white ring-4 ring-slate-100"
-                      : "border-[#1c2434] hover:bg-slate-50/50"
-                  }`}
-                >
-                  {/* Custom Folder Tab Element */}
-                  <div
-                    className={`absolute -top-2.25 left-6 h-2.5 w-32 bg-[#1c2434] transition-opacity ${
-                      cls.muted ? "opacity-60" : "opacity-100"
+            {isLoadingClasses ? (
+              <div className="col-span-full py-10 text-center text-sm text-slate-400">
+                Loading classes...
+              </div>
+            ) : classesError ? (
+              <div className="col-span-full py-10 text-center text-sm text-red-500">
+                {classesError}
+              </div>
+            ) : classes.length === 0 ? (
+              <div className="col-span-full py-10 text-center text-sm text-slate-400">
+                No classes yet.
+              </div>
+            ) : (
+              classes.map((cls) => {
+                const isSelected = selectedClassId === cls.id;
+                const studentCount = cls._count?.students ?? 0;
+
+                return (
+                  <motion.button
+                    key={cls.id}
+                    onClick={() => handleFolderClick(cls.id)}
+                    whileTap={{ scale: 0.98 }}
+                    className={`relative mt-3 rounded-2xl border-2 p-6 text-left transition-all bg-white ${
+                      isSelected
+                        ? "border-[#1c2434] bg-white ring-4 ring-slate-100"
+                        : "border-[#1c2434] hover:bg-slate-50/50"
                     }`}
-                    style={{
-                      clipPath: "polygon(0% 100%, 15% 0%, 85% 0%, 100% 100%)",
-                    }}
-                  />
-
-                  {/* Top Section: Folder Icon and Badge */}
-                  <div className="mb-6 flex items-start justify-between">
-                    <Folder
-                      className={`h-9 w-9 stroke-[2.5] ${
-                        cls.muted ? "text-slate-400" : "text-[#1c2434]"
-                      }`}
+                  >
+                    <div
+                      className="absolute -top-2.25 left-6 h-2.5 w-32 bg-[#1c2434]"
+                      style={{
+                        clipPath: "polygon(0% 100%, 15% 0%, 85% 0%, 100% 100%)",
+                      }}
                     />
-                    <span
-                      className={`rounded bg-[#e2eafc] px-3 py-1.5 text-[11px] font-bold tracking-wider text-[#1c2434] shrink-0 uppercase`}
-                    >
-                      {cls.badge || "ACTIVE"}
-                    </span>
-                  </div>
 
-                  {/* Middle Section: Typography */}
-                  <div className="mb-6">
-                    <h4 className="font-serif text-2xl font-normal text-[#1c2434] truncate">
-                      {cls.name}
-                    </h4>
-                    <p
-                      className="mt-1 text-base text-slate-600 truncate"
-                      dir="rtl"
-                    >
-                      {cls.nameAr}
-                    </p>
-                  </div>
+                    <div className="mb-6 flex items-start justify-between">
+                      <Folder className="h-9 w-9 stroke-[2.5] text-[#1c2434]" />
+                      <span className="rounded bg-[#e2eafc] px-3 py-1.5 text-[11px] font-bold tracking-wider text-[#1c2434] shrink-0 uppercase">
+                        ACTIVE
+                      </span>
+                    </div>
 
-                  {/* Bottom Section: Student Count */}
-                  {cls.students !== null && (
+                    <div className="mb-6">
+                      <h4 className="font-serif text-2xl font-normal text-[#1c2434] truncate">
+                        {cls.nameEn}
+                      </h4>
+                      <p
+                        className="mt-1 text-base text-slate-600 truncate"
+                        dir="rtl"
+                      >
+                        {cls.nameAr}
+                      </p>
+                    </div>
+
                     <div className="flex items-center gap-2.5 text-base font-medium text-[#1c2434]">
                       <Users className="h-5 w-5 text-amber-500 fill-amber-500/10 stroke-[2.5]" />
-                      <span>{cls.students} Students</span>
+                      <span>{studentCount} Students</span>
                     </div>
-                  )}
-                </motion.button>
-              );
-            })}
+                  </motion.button>
+                );
+              })
+            )}
           </motion.div>
 
           {/* Class Info Roster Preview Dynamic Layer */}
@@ -660,7 +610,7 @@ export default function AdminHome() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#0B1730] px-4 py-4 sm:px-6 sm:py-5 gap-4">
                     <div>
                       <h1 className="text-base font-bold text-white flex flex-wrap gap-x-2 items-center">
-                        <span>{selectedClass.name} /</span>
+                        <span>{selectedClass.nameEn} /</span>
                         <span
                           dir="rtl"
                           className="text-sm text-slate-300 font-normal"
@@ -676,7 +626,6 @@ export default function AdminHome() {
                       </h4>
                     </div>
 
-                    {/* Actions Group */}
                     <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-slate-800 pt-3 sm:pt-0 sm:border-none">
                       <button
                         type="button"
@@ -700,7 +649,8 @@ export default function AdminHome() {
 
                   {/* Roster Table Content */}
                   <div className="overflow-x-auto w-full">
-                    {selectedClass.roster.length > 0 ? (
+                    {selectedClass.students &&
+                    selectedClass.students.length > 0 ? (
                       <table className="w-full border-collapse text-sm table-auto">
                         <thead>
                           <tr className="border-b border-slate-200 bg-slate-50">
@@ -728,7 +678,7 @@ export default function AdminHome() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
-                          {selectedClass.roster.map((student) => (
+                          {selectedClass.students.map((student) => (
                             <tr
                               key={student.id}
                               className="hover:bg-slate-50/50 transition-colors"
@@ -736,13 +686,13 @@ export default function AdminHome() {
                               <td className="px-4 py-3.5">
                                 <div className="flex items-center gap-3">
                                   <div
-                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${student.avatarColor}`}
+                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${getAvatarColor(student.id)}`}
                                   >
-                                    {student.initials}
+                                    {getInitials(student.nameEn)}
                                   </div>
                                   <div className="min-w-0">
                                     <p className="font-semibold text-slate-800 truncate">
-                                      {student.name}
+                                      {student.nameEn}
                                     </p>
                                     <p
                                       className="text-xs text-slate-400 truncate"
@@ -754,39 +704,19 @@ export default function AdminHome() {
                                 </div>
                               </td>
                               <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap">
-                                #{student.id}
+                                #{student.id.slice(0, 8)}
                               </td>
-                              <td className="px-4 py-3.5">
-                                <div className="flex flex-col gap-1">
-                                  <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-200">
-                                    <div
-                                      className="h-full rounded-full bg-amber-500"
-                                      style={{
-                                        width: `${student.attendance}%`,
-                                      }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-slate-500">
-                                    {student.attendance}%
-                                  </span>
-                                </div>
+                              <td className="px-4 py-3.5 text-slate-400">—</td>
+                              <td className="px-4 py-3.5 text-center text-slate-400">
+                                —
                               </td>
-                              <td className="px-4 py-3.5 text-center font-medium text-slate-700">
-                                {student.term1}
+                              <td className="px-4 py-3.5 text-center text-slate-400">
+                                —
                               </td>
-                              <td className="px-4 py-3.5 text-center font-medium text-slate-700">
-                                {student.term2}
+                              <td className="px-4 py-3.5 text-center text-slate-400">
+                                —
                               </td>
-                              <td className="px-4 py-3.5 text-center font-medium text-slate-700">
-                                {student.term3}
-                              </td>
-                              <td className="px-4 py-3.5 whitespace-nowrap">
-                                <span
-                                  className={`rounded-full px-2.5 py-1 text-xs font-bold ${student.statusColor}`}
-                                >
-                                  {student.status}
-                                </span>
-                              </td>
+                              <td className="px-4 py-3.5 text-slate-400">—</td>
                             </tr>
                           ))}
                         </tbody>

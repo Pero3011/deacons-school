@@ -3,11 +3,18 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const classes = await prisma.classes.findMany();
+    const classes = await prisma.classes.findMany({
+      include: {
+        _count: {
+          select: { students: true },
+        },
+      },
+      orderBy: { created_at: "asc" },
+    });
     return Response.json(classes);
   } catch (error: any) {
     console.error(error);
-    return Response.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
+    return Response.json({ error: "Failed to Fetch Classes." }, { status: 500 });
   }
 }
 

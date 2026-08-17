@@ -6,6 +6,7 @@ import { Folder, FolderPlus, Users, X } from "lucide-react";
 import PerformanceCards from "./sections/PerformanceCards";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, Variants } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -72,6 +73,13 @@ function getAvatarColor(id: string) {
 }
 
 export default function AdminHome() {
+  const router = useRouter();
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/auth");
+    }
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [showAddClassModal, setShowAddClassModal] = useState(false);
@@ -96,8 +104,11 @@ export default function AdminHome() {
   useEffect(() => {
     if (showAddClassModal || showAddStudentModal) {
       setIsLoadingStudents(true);
+      const token = localStorage.getItem("token");
 
-      fetch("/api/students")
+      fetch("/api/students", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
         .then(async (res) => {
           const data = await res.json();
           if (!res.ok || data.error) {
@@ -110,6 +121,7 @@ export default function AdminHome() {
         })
         .catch((err) => {
           console.error("Couldn't fetch students:", err);
+          console.log(err);
           setAvailableStudents([]);
         })
         .finally(() => {
@@ -122,8 +134,11 @@ export default function AdminHome() {
   const fetchClasses = () => {
     setIsLoadingClasses(true);
     setClassesError(null);
+    const token = localStorage.getItem("token");
 
-    fetch("/api/classes")
+    fetch("/api/classes", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok || data.error) {
@@ -190,10 +205,13 @@ export default function AdminHome() {
     setError(null);
 
     try {
+      const token = localStorage.getItem("token");
+
       const response = await fetch("/api/classes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           nameEn: newClassName,

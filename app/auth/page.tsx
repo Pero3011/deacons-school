@@ -6,6 +6,7 @@ import { CircleAlert } from "lucide-react";
 import LanguageButton from "../../components/LanguageButton";
 import { useLanguage } from "../../context/LanguageContext";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -13,6 +14,7 @@ export default function Auth() {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { language } = useLanguage();
+  const router = useRouter();
 
   const itemVariants = {
     hidden: {
@@ -134,23 +136,29 @@ export default function Auth() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/auth", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      const raw = await response.text();
+      const data = JSON.parse(raw);
 
-      if (!response.ok || !data.success) {
+      if (!response.ok || !data.token) {
         throw new Error(data.message || "Authentication failed.");
       }
+
+      // Store the token so future requests are authenticated
+      localStorage.setItem("token", data.token);
 
       setMessage(
         language === "ar"
           ? "تم تسجيل الدخول بنجاح."
           : "Signed in successfully.",
       );
+      router.push('/Home');
+      router.refresh();
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Authentication failed.",

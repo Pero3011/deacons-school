@@ -186,17 +186,45 @@ export default function AdminHome() {
     setShowAddStudentModal(false);
   };
 
-  const handleAddSelectedStudent = () => {
+  const handleAddSelectedStudent = async () => {
     if (!selectedStudentId) return;
 
     const found = availableStudents.find((s) => s.id === selectedStudentId);
     if (!found) return;
 
-    if (studentsPreview.some((s) => s.id === found.id)) return;
+    if (selectedClassId) {
+      // Adding to an EXISTING class — persist immediately
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          `/api/classes/${selectedClassId}/students`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ studentId: found.id }),
+          },
+        );
 
-    setStudentsPreview((prev) => [...prev, found]);
-    setSelectedStudentId("");
-    closeAddStudentModal();
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.error || "Failed to add student");
+
+        fetchClasses(); // refresh roster so the table updates
+        setSelectedStudentId("");
+        closeAddStudentModal();
+      } catch (err: any) {
+        console.error("Error adding student to class:", err);
+      }
+    } else {
+      // Building a NEW class — keep it local until "Save Class"
+      if (studentsPreview.some((s) => s.id === found.id)) return;
+      setStudentsPreview((prev) => [...prev, found]);
+      setSelectedStudentId("");
+      closeAddStudentModal();
+    }
   };
 
   const handleSaveClass = async (e: React.FormEvent) => {

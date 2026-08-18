@@ -9,7 +9,7 @@ export async function GET() {
     return NextResponse.json(students);
   } catch (error: unknown) {
     console.error(error);
-    return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
+    return NextResponse.json({ error: "Error occured trying to fetch the students" }, { status: 500 });
   }
 }
 

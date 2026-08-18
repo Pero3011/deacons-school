@@ -47,7 +47,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   };
 
   const Links = [
-    { icon: GraduationCap, title: "Home (Classes)", route: "/" },
+    { icon: GraduationCap, title: "Home (Classes)", route: "/Home" },
     { icon: UserCheck, title: "Attendance", route: "/attendance" },
     { icon: Star, title: "Marks", route: "/marks" },
   ];

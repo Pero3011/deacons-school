@@ -47,7 +47,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const adminId = getAdminIdFromRequest(request); // <-- real admin id
+    const adminId = getAdminIdFromRequest(request);
 
     const body = await request.json();
     const { nameEn, nameAr, studentsPreview } = body;

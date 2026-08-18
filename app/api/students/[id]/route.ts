@@ -1,9 +1,13 @@
 import prisma from "@/lib/prisma";
 import { handlePrismaError } from "@/lib/handleError";
+import { NextResponse } from "next/server";
 
-export async function PUT(request: any, { params }: any) {
+export async function PUT(
+  request: any,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const userId = request.headers.get("x-user-id");
     const userRole = request.headers.get("x-user-role");
@@ -36,9 +40,12 @@ export async function PUT(request: any, { params }: any) {
   }
 }
 
-export async function DELETE(request: any, { params }: any) {
+export async function DELETE(
+  request: any,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const userId = request.headers.get("x-user-id");
     const userRole = request.headers.get("x-user-role");
 

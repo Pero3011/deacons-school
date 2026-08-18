@@ -1,111 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
-import { ChevronDown, Folder, Lock} from "lucide-react";
+import { ChevronDown, Folder, Lock } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import { useLanguage } from "@/context/LanguageContext";
 
-type Student = {
-  id: number;
-  nameEn: string;
-  nameAr: string;
-  t1: string;
-  t2: string;
-  t3: string;
-  current: boolean[];
-};
-
-type ClassFolder = {
+type RosterStudent = {
   id: string;
   nameEn: string;
   nameAr: string;
-  teacherEn: string;
-  teacherAr: string;
-  studentCount: number;
-  locked?: boolean;
-  loading?: boolean;
-  students: Student[];
 };
 
-const classFolders: ClassFolder[] = [
-  {
-    id: "grade-1",
-    nameEn: "Elementary: Grade 1 (St. Mark)",
-    nameAr: "المرحلة الابتدائية: الصف الأول (مارمرقس)",
-    teacherEn: "Teacher: Michael Ghabbour • 42 Students",
-    teacherAr: "المعلم: مايكل غبور • ٤٢ طالب",
-    studentCount: 42,
-    students: [
-      {
-        id: 1,
-        nameEn: "Andrew Samuel",
-        nameAr: "اندرو صموئيل",
-        t1: "95%",
-        t2: "92%",
-        t3: "98%",
-        current: [true, true, false, true],
-      },
-      {
-        id: 2,
-        nameEn: "Marina Wagih",
-        nameAr: "مارينا وجيه",
-        t1: "100%",
-        t2: "98%",
-        t3: "100%",
-        current: [true, true, true, true],
-      },
-      {
-        id: 3,
-        nameEn: "Peter Isaac",
-        nameAr: "بيتر اسحق",
-        t1: "80%",
-        t2: "85%",
-        t3: "82%",
-        current: [true, false, true, false],
-      },
-      {
-        id: 4,
-        nameEn: "Justina Rafik",
-        nameAr: "يوستينا رفيق",
-        t1: "92%",
-        t2: "90%",
-        t3: "94%",
-        current: [true, true, true, false],
-      },
-      {
-        id: 5,
-        nameEn: "Kyrollos Mina",
-        nameAr: "كيرلس مينا",
-        t1: "88%",
-        t2: "82%",
-        t3: "90%",
-        current: [false, true, true, true],
-      },
-    ],
-  },
-  {
-    id: "grade-7",
-    nameEn: "Preparatory: Grade 7 (St. Anthony)",
-    nameAr: "المرحلة الإعدادية: الصف السابع (الأنبا أنطونيوس)",
-    teacherEn: "Teacher: David Shenouda • 38 Students",
-    teacherAr: "المعلم: ديفيد شنودة • ٣٨ طالب",
-    studentCount: 38,
-    loading: true,
-    students: [],
-  },
-  {
-    id: "grade-10",
-    nameEn: "High School: Grade 10 (St. Paul)",
-    nameAr: "المرحلة الثانوية: الصف العاشر (ماربولس)",
-    teacherEn: "Restricted Access",
-    teacherAr: "وصول مقيد",
-    studentCount: 0,
-    locked: true,
-    students: [],
-  },
-];
+type ClassData = {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+  _count?: { students: number };
+  students?: RosterStudent[];
+};
 
 const t = {
   heading: { en: "Attendance Registry", ar: "سجل الحضور" },
@@ -128,20 +42,31 @@ const t = {
     en: "Loading student records...",
     ar: "جاري تحميل سجلات الطلاب...",
   },
+  noStudents: {
+    en: "No students in this class yet.",
+    ar: "لا يوجد طلاب في هذا الفصل بعد.",
+  },
+  loadingClasses: {
+    en: "Loading classes...",
+    ar: "جاري تحميل الفصول...",
+  },
+  noClasses: {
+    en: "No classes yet.",
+    ar: "لا توجد فصول بعد.",
+  },
 };
 
-// Framer Motion Variants for staggered orchestration
-const containerVariants:Variants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1, // Delays sequential elements by 100ms
+      staggerChildren: 0.1,
     },
   },
 };
 
-const itemVariants:Variants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 15 },
   visible: {
     opacity: 1,
@@ -150,28 +75,91 @@ const itemVariants:Variants = {
   },
 };
 
+// Four toggleable weeks for the "current term" mini-grid.
+// This is UI-only until a real attendances API exists — see note below.
+const CURRENT_TERM_WEEKS = 4;
+
 export default function AttendancePage() {
   const { language } = useLanguage();
   const isArabic = language === "ar";
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({
-    "grade-1": true,
-  });
-  const [attendance, setAttendance] = useState<Record<string, boolean[]>>(
-    Object.fromEntries(
-      classFolders
-        .find((f) => f.id === "grade-1")!
-        .students.map((s) => [s.id, s.current]),
-    ),
-  );
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+
+  // NOTE: There is no attendances table/API wired up yet, so this stays
+  // client-only state — toggling a box here does NOT persist to the database.
+  // Once an /api/attendances endpoint exists, this should be replaced with
+  // fetched data + a PATCH/POST call inside toggleAttendance.
+  const [attendance, setAttendance] = useState<Record<string, boolean[]>>({});
+
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [isLoadingClasses, setIsLoadingClasses] = useState(true);
+  const [classesError, setClassesError] = useState<string | null>(null);
+
+  const [studentCount, setStudentCount] = useState<number | null>(null);
+
+  const fetchClasses = () => {
+    setIsLoadingClasses(true);
+    setClassesError(null);
+    const token = localStorage.getItem("token");
+
+    fetch("/api/classes", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        return data;
+      })
+      .then((data: ClassData[]) => {
+        const list = Array.isArray(data) ? data : [];
+        setClasses(list);
+
+        // Open the first class by default once data arrives, if nothing
+        // is open yet.
+        setOpenFolders((current) => {
+          if (Object.keys(current).length > 0 || list.length === 0) {
+            return current;
+          }
+          return { [list[0].id]: true };
+        });
+      })
+      .catch((err) => {
+        console.error("Couldn't fetch classes:", err);
+        setClassesError("Couldn't load classes.");
+        setClasses([]);
+      })
+      .finally(() => setIsLoadingClasses(false));
+  };
+
+  useEffect(() => {
+    fetchClasses();
+  }, []);
+
+  // Total students: derived from /api/students/count rather than summed
+  // client-side, since a student could theoretically exist without a class.
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    fetch("/api/students/count", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setStudentCount(data.count))
+      .catch((err) => console.error("Couldn't fetch student count:", err));
+  }, []);
+
+  // Active classes count comes straight from the classes we already fetched —
+  // no need for a separate /api/classes/count round trip.
+  const classCount = classes.length;
 
   const toggleFolder = (id: string) => {
     setOpenFolders((current) => ({ ...current, [id]: !current[id] }));
   };
 
-  const toggleAttendance = (studentId: number, weekIndex: number) => {
+  const toggleAttendance = (studentId: string, weekIndex: number) => {
     setAttendance((current) => {
-      const week = current[studentId] ?? [];
+      const week = current[studentId] ?? Array(CURRENT_TERM_WEEKS).fill(false);
       const next = [...week];
       next[weekIndex] = !next[weekIndex];
       return { ...current, [studentId]: next };
@@ -185,7 +173,6 @@ export default function AttendancePage() {
       <div className="min-h-screen min-w-0 md:pl-72 flex flex-col">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
-        {/* Turned the <main> wrapper into a motion container */}
         <motion.main
           variants={containerVariants}
           initial="hidden"
@@ -216,7 +203,9 @@ export default function AttendancePage() {
               <span className="text-xs font-semibold uppercase tracking-wider opacity-80">
                 {t.totalStudents[language]}
               </span>
-              <span className="font-serif text-3xl font-bold">1,248</span>
+              <span className="font-serif text-3xl font-bold">
+                {studentCount ?? "…"}
+              </span>
             </div>
 
             <div className="flex h-28 flex-col justify-between rounded-xl border border-slate-200 bg-white p-5">
@@ -224,11 +213,9 @@ export default function AttendancePage() {
                 {t.avgAttendance[language]}
               </span>
               <div className="flex items-end gap-2">
+                {/* No attendances table yet — placeholder until real data exists */}
                 <span className="font-serif text-3xl font-bold text-secondary">
-                  94%
-                </span>
-                <span className="mb-1 text-sm font-semibold text-green-600">
-                  ↑ 2%
+                  —
                 </span>
               </div>
             </div>
@@ -238,157 +225,167 @@ export default function AttendancePage() {
                 {t.activeClasses[language]}
               </span>
               <span className="font-serif text-3xl font-bold text-primary">
-                24
+                {classCount}
               </span>
             </div>
           </motion.div>
 
           {/* Folders */}
           <motion.div variants={itemVariants} className="space-y-4">
-            {classFolders.map((cls) => {
-              const isOpen = !!openFolders[cls.id];
-              return (
-                <div
-                  key={cls.id}
-                  className={`overflow-hidden rounded-xl border border-slate-200 bg-white transition-all ${
-                    cls.locked ? "opacity-60" : ""
-                  }`}
-                >
-                  <button
-                    disabled={cls.locked}
-                    onClick={() => toggleFolder(cls.id)}
-                    className={`flex w-full items-center justify-between p-5 text-left transition-colors ${
-                      isArabic ? "text-right" : "text-left"
-                    } ${cls.locked ? "cursor-not-allowed" : "hover:bg-slate-50"}`}
+            {isLoadingClasses ? (
+              <div className="py-10 text-center text-sm text-slate-400">
+                {t.loadingClasses[language]}
+              </div>
+            ) : classesError ? (
+              <div className="py-10 text-center text-sm text-red-500">
+                {classesError}
+              </div>
+            ) : classes.length === 0 ? (
+              <div className="py-10 text-center text-sm text-slate-400">
+                {t.noClasses[language]}
+              </div>
+            ) : (
+              classes.map((cls) => {
+                const isOpen = !!openFolders[cls.id];
+                const students = cls.students ?? [];
+                const studentCountForClass =
+                  cls._count?.students ?? students.length;
+
+                return (
+                  <div
+                    key={cls.id}
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-white transition-all"
                   >
-                    <div className="flex items-center gap-4">
-                      {cls.locked ? (
-                        <Lock className="h-8 w-8 text-slate-300" />
-                      ) : (
+                    <button
+                      onClick={() => toggleFolder(cls.id)}
+                      className={`flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-slate-50 ${
+                        isArabic ? "text-right" : "text-left"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
                         <Folder
                           className="h-8 w-8 text-amber-500"
                           strokeWidth={1.5}
                           fill="currentColor"
                           fillOpacity={0.15}
                         />
-                      )}
-                      <div>
-                        <h3
-                          className={`font-serif text-lg font-semibold ${cls.locked ? "text-slate-400" : "text-primary"}`}
-                        >
-                          {isArabic ? cls.nameAr : cls.nameEn}
-                        </h3>
-                        <p
-                          className={`text-sm ${cls.locked ? "text-slate-400" : "text-slate-500"}`}
-                        >
-                          {isArabic ? cls.teacherAr : cls.teacherEn}
-                        </p>
+                        <div>
+                          <h3 className="font-serif text-lg font-semibold text-primary">
+                            {isArabic ? cls.nameAr : cls.nameEn}
+                          </h3>
+                          <p className="text-sm text-slate-500">
+                            {studentCountForClass}{" "}
+                            {isArabic ? "طالب" : "Students"}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    {!cls.locked && (
                       <motion.span animate={{ rotate: isOpen ? 180 : 0 }}>
                         <ChevronDown className="h-5 w-5 text-slate-500" />
                       </motion.span>
-                    )}
-                  </button>
+                    </button>
 
-                  <AnimatePresence initial={false}>
-                    {isOpen && !cls.locked && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.25, ease: "easeInOut" }}
-                        className="overflow-hidden border-t-2 border-primary"
-                      >
-                        {cls.loading ? (
-                          <div className="p-12 text-center italic text-slate-400">
-                            {t.loading[language]}
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table
-                              className="w-full border-collapse text-left"
-                              dir={isArabic ? "rtl" : "ltr"}
-                            >
-                              <thead>
-                                <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
-                                  <th className="p-4">
-                                    {t.studentName[language]}
-                                  </th>
-                                  <th className="p-4 text-center">
-                                    {t.term1[language]}
-                                  </th>
-                                  <th className="p-4 text-center">
-                                    {t.term2[language]}
-                                  </th>
-                                  <th className="p-4 border-r border-slate-200 text-center">
-                                    {t.term3[language]}
-                                  </th>
-                                  <th
-                                    colSpan={4}
-                                    className="whitespace-nowrap border-x border-slate-200 bg-slate-100 p-2 text-center"
-                                  >
-                                    {t.currentTerm[language]}
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {cls.students.map((student, index) => {
-                                  const week =
-                                    attendance[student.id] ?? student.current;
-                                  return (
-                                    <tr
-                                      key={student.id}
-                                      className={`transition-colors hover:bg-amber-50/40 ${
-                                        index % 2 === 1 ? "bg-slate-50/50" : ""
-                                      }`}
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25, ease: "easeInOut" }}
+                          className="overflow-hidden border-t-2 border-primary"
+                        >
+                          {students.length === 0 ? (
+                            <div className="p-12 text-center italic text-slate-400">
+                              {t.noStudents[language]}
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table
+                                className="w-full border-collapse text-left"
+                                dir={isArabic ? "rtl" : "ltr"}
+                              >
+                                <thead>
+                                  <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
+                                    <th className="p-4">
+                                      {t.studentName[language]}
+                                    </th>
+                                    <th className="p-4 text-center">
+                                      {t.term1[language]}
+                                    </th>
+                                    <th className="p-4 text-center">
+                                      {t.term2[language]}
+                                    </th>
+                                    <th className="p-4 border-r border-slate-200 text-center">
+                                      {t.term3[language]}
+                                    </th>
+                                    <th
+                                      colSpan={CURRENT_TERM_WEEKS}
+                                      className="whitespace-nowrap border-x border-slate-200 bg-slate-100 p-2 text-center"
                                     >
-                                      <td className="p-4 font-semibold text-primary">
-                                        {isArabic
-                                          ? student.nameAr
-                                          : student.nameEn}
-                                      </td>
-                                      <td className="p-4 text-center text-slate-500">
-                                        {student.t1}
-                                      </td>
-                                      <td className="p-4 text-center text-slate-500">
-                                        {student.t2}
-                                      </td>
-                                      <td className="border-r border-slate-100 p-4 text-center text-slate-500">
-                                        {student.t3}
-                                      </td>
-                                      {week.map((attended, weekIndex) => (
-                                        <td
-                                          key={weekIndex}
-                                          className="border-x border-slate-100 p-4 text-center"
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            checked={attended}
-                                            onChange={() =>
-                                              toggleAttendance(
-                                                student.id,
-                                                weekIndex,
-                                              )
-                                            }
-                                            className="h-5 w-5 cursor-pointer rounded text-primary accent-secondary"
-                                          />
+                                      {t.currentTerm[language]}
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {students.map((student, index) => {
+                                    const week =
+                                      attendance[student.id] ??
+                                      Array(CURRENT_TERM_WEEKS).fill(false);
+                                    return (
+                                      <tr
+                                        key={student.id}
+                                        className={`transition-colors hover:bg-amber-50/40 ${
+                                          index % 2 === 1
+                                            ? "bg-slate-50/50"
+                                            : ""
+                                        }`}
+                                      >
+                                        <td className="p-4 font-semibold text-primary">
+                                          {isArabic
+                                            ? student.nameAr
+                                            : student.nameEn}
                                         </td>
-                                      ))}
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
+                                        {/* No marks API yet — placeholders like the roster table */}
+                                        <td className="p-4 text-center text-slate-400">
+                                          —
+                                        </td>
+                                        <td className="p-4 text-center text-slate-400">
+                                          —
+                                        </td>
+                                        <td className="border-r border-slate-100 p-4 text-center text-slate-400">
+                                          —
+                                        </td>
+                                        {week.map((attended, weekIndex) => (
+                                          <td
+                                            key={weekIndex}
+                                            className="border-x border-slate-100 p-4 text-center"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={attended}
+                                              onChange={() =>
+                                                toggleAttendance(
+                                                  student.id,
+                                                  weekIndex,
+                                                )
+                                              }
+                                              className="h-5 w-5 cursor-pointer rounded text-primary accent-secondary"
+                                            />
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })
+            )}
           </motion.div>
         </motion.main>
       </div>

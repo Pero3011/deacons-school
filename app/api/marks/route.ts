@@ -1,46 +1,40 @@
 import prisma from "@/lib/prisma";
-import { handlePrismaError } from "@/lib/handleError";
+import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function POST(request: Request) {
   try {
-    const marks = await prisma.marks.findMany();
-    return Response.json(marks);
-  } catch (error: any) {
-    console.error(error);
-    return Response.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
-  }
-}
+    const { studentId, examId, obtainedMark } = await request.json();
 
-export async function POST(request: any) {
-    try {
-        const body = await request.json();
-
-        const exam = await prisma.exams.findUnique({
-            where: { id: body.examId },
-        });
-
-        if (!exam) {
-            return Response.json({ error: "الامتحان غير موجود" }, { status: 404 });
-        }
-
-        if (body.obtainedMark > exam.maxMark) {
-            return Response.json(
-                { error: `الدرجة المدخلة أكبر من الحد الأقصى (${exam.maxMark})` },
-                { status: 400 },
-            );
-        }
-
-        const newMark = await prisma.marks.create({
-            data: {
-                studentId: body.studentId,
-                examId: body.examId,
-                obtainedMark: body.obtainedMark,
-            },
-        });
-
-        return Response.json(newMark);
-    } catch (error: any) {
-        console.error(error);
-        return handlePrismaError(error)
+    if (!studentId || !examId || obtainedMark === undefined) {
+      return NextResponse.json(
+        { error: "studentId, examId and obtainedMark are required" },
+        { status: 400 },
+      );
     }
+
+    const exam = await prisma.exams.findUnique({ where: { id: examId } });
+    if (!exam) {
+      return NextResponse.json({ error: "Exam not found" }, { status: 404 });
+    }
+
+    if (obtainedMark < 0 || obtainedMark > exam.maxMark) {
+      return NextResponse.json(
+        { error: `obtainedMark must be between 0 and ${exam.maxMark}` },
+        { status: 400 },
+      );
+    }
+
+    const mark = await prisma.marks.upsert({
+      where: {
+        studentId_examId: { studentId, examId },
+      },
+      update: { obtainedMark },
+      create: { studentId, examId, obtainedMark },
+    });
+
+    return NextResponse.json(mark, { status: 200 });
+  } catch (error) {
+    console.error("Error saving mark:", error);
+    return NextResponse.json({ error: "Failed to save mark" }, { status: 500 });
+  }
 }

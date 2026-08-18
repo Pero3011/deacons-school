@@ -1,67 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
-import {
-  Book,
-  BookOpen,
-  Download,
-  FileDown,
-  X,
-  ChevronDown,
-  FolderOpen,
-} from "lucide-react";
+import { Book, Download, FileDown, X, ChevronDown } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import { useLanguage } from "@/context/LanguageContext";
 
-type MarksRow = {
+type ClassData = {
   id: string;
   nameEn: string;
   nameAr: string;
-  term1?: [number, number, number, number];
-  term2?: [number, number, number, number];
-  term3?: [number, number, number, number];
-  finalGrade?: string;
-  finalPercent?: number;
 };
 
-const subjects = [
-  { key: "melodies", en: "Melodies", ar: "الحان" },
-  { key: "taks", en: "Taks", ar: "طقس" },
-  { key: "aghaby", en: "Aghaby", ar: "اجبية" },
-  { key: "coptic", en: "Coptic", ar: "قبطي" },
-];
+type MarksheetStudent = {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+};
 
-const primaryStudents: MarksRow[] = [
-  {
-    id: "1",
-    nameEn: "Samuel Mikhail",
-    nameAr: "صموئيل ميخائيل",
-    term1: [95, 90, 92, 91],
-    term2: [88, 85, 90, 89],
-  },
-  {
-    id: "2",
-    nameEn: "Maria Shenouda",
-    nameAr: "ماريا شنودة",
-    term1: [98, 95, 94, 93],
-    term2: [99, 97, 98, 98],
-    term3: [96, 96, 97, 95],
-    finalGrade: "A+",
-    finalPercent: 96.3,
-  },
-  {
-    id: "3",
-    nameEn: "John David",
-    nameAr: "يوحنا داود",
-    term1: [78, 72, 75, 75],
-    term2: [82, 78, 80, 80],
-    term3: [79, 77, 78, 78],
-    finalGrade: "B",
-    finalPercent: 77.6,
-  },
-];
+type MarksheetExam = {
+  id: string;
+  term: "Term1" | "Term2" | "Term3";
+  maxMark: number;
+  subject: { id: string; nameEn: string; nameAr: string };
+};
+
+type Marksheet = {
+  students: MarksheetStudent[];
+  exams: MarksheetExam[];
+  marks: Record<string, Record<string, number>>; // studentId -> examId -> mark
+};
+
+const TERMS: Array<"Term1" | "Term2" | "Term3"> = ["Term1", "Term2", "Term3"];
 
 const t = {
   heading: { en: "Marks Management", ar: "إدارة الدرجات" },
@@ -69,28 +40,20 @@ const t = {
     en: "Grade tracking and academic records for the current academic year.",
     ar: "متابعة الدرجات والسجلات الأكاديمية للعام الدراسي الحالي.",
   },
-  primaryTab: {
-    en: "Primary Level (Level 1-3)",
-    ar: "المرحلة الابتدائية (١-٣)",
-  },
-  secondaryTab: {
-    en: "Intermediate Level (Level 4-6)",
-    ar: "المرحلة المتوسطة (٤-٦)",
-  },
-  className: {
-    en: "Class: St. Mary (Level 1)",
-    ar: "الفصل: مارجرجس (المستوى ١)",
-  },
+  selectClass: { en: "Select a class", ar: "اختر فصلاً" },
   exportClass: { en: "Export Class Report", ar: "تصدير تقرير الفصل" },
   studentName: { en: "Student Name", ar: "اسم الطالب" },
   term: { en: "Term", ar: "الترم" },
-  finalGrade: { en: "Final Grade", ar: "الدرجة النهائية" },
   actions: { en: "Actions", ar: "إجراءات" },
-  pending: { en: "Pending", ar: "قيد الانتظار" },
-  emptyIntermediate: {
-    en: "Select a specific class from the sidebar to view detailed marks.",
-    ar: "اختر فصلاً محدداً من القائمة الجانبية لعرض الدرجات بالتفصيل.",
+  noExam: { en: "No exam set", ar: "لم يتم تحديد امتحان" },
+  loadingClasses: { en: "Loading classes...", ar: "جاري تحميل الفصول..." },
+  loadingMarksheet: { en: "Loading marksheet...", ar: "جاري تحميل الدرجات..." },
+  noClasses: { en: "No classes yet.", ar: "لا توجد فصول بعد." },
+  noStudents: {
+    en: "No students in this class yet.",
+    ar: "لا يوجد طلاب في هذا الفصل بعد.",
   },
+  saveError: { en: "Couldn't save mark.", ar: "تعذر حفظ الدرجة." },
   modalTitle: { en: "Export Academic Record", ar: "تصدير السجل الأكاديمي" },
   modalSubtitle: {
     en: "Choose the reporting period for:",
@@ -112,21 +75,16 @@ const t = {
   },
 };
 
-// Orchestrates the entrance fade and slide up
-const containerVariants:Variants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0, y: 15 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: {
-      duration: 0.4,
-      ease: "easeOut",
-      staggerChildren: 0.15,
-    },
+    transition: { duration: 0.4, ease: "easeOut", staggerChildren: 0.15 },
   },
 };
 
-const itemVariants:Variants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 12 },
   visible: {
     opacity: 1,
@@ -139,15 +97,122 @@ export default function MarksPage() {
   const { language } = useLanguage();
   const isArabic = language === "ar";
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"primary" | "secondary">(
-    "primary",
-  );
   const [exportTarget, setExportTarget] = useState<string | null>(null);
   const [showTermSelect, setShowTermSelect] = useState(false);
+
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [isLoadingClasses, setIsLoadingClasses] = useState(true);
+  const [classesError, setClassesError] = useState<string | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+
+  const [marksheet, setMarksheet] = useState<Marksheet | null>(null);
+  const [isLoadingMarksheet, setIsLoadingMarksheet] = useState(false);
+  const [savingCell, setSavingCell] = useState<string | null>(null);
+
+  // Fetch classes once
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    setIsLoadingClasses(true);
+    setClassesError(null);
+
+    fetch("/api/classes", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || data.error)
+          throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+      })
+      .then((data: ClassData[]) => {
+        const list = Array.isArray(data) ? data : [];
+        setClasses(list);
+        if (list.length > 0) setSelectedClassId(list[0].id);
+      })
+      .catch((err) => {
+        console.error("Couldn't fetch classes:", err);
+        setClassesError("Couldn't load classes.");
+        setClasses([]);
+      })
+      .finally(() => setIsLoadingClasses(false));
+  }, []);
+
+  // Fetch marksheet whenever the selected class changes
+  useEffect(() => {
+    if (!selectedClassId) return;
+    const token = localStorage.getItem("token");
+    setIsLoadingMarksheet(true);
+
+    fetch(`/api/classes/${selectedClassId}/marksheet`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || data.error)
+          throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+      })
+      .then((data: Marksheet) => setMarksheet(data))
+      .catch((err) => {
+        console.error("Couldn't fetch marksheet:", err);
+        setMarksheet(null);
+      })
+      .finally(() => setIsLoadingMarksheet(false));
+  }, [selectedClassId]);
 
   const closeModal = () => {
     setExportTarget(null);
     setShowTermSelect(false);
+  };
+
+  const examFor = (subjectId: string, term: string) =>
+    marksheet?.exams.find((e) => e.subject.id === subjectId && e.term === term);
+
+  // Distinct subjects that actually have at least one exam in this class
+  const subjectsInClass = marksheet
+    ? Array.from(
+        new Map(marksheet.exams.map((e) => [e.subject.id, e.subject])).values(),
+      )
+    : [];
+
+  const handleMarkChange = async (
+    studentId: string,
+    examId: string,
+    value: number,
+  ) => {
+    const key = `${studentId}-${examId}`;
+    setSavingCell(key);
+
+    // optimistic update
+    setMarksheet((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        marks: {
+          ...prev.marks,
+          [studentId]: { ...prev.marks[studentId], [examId]: value },
+        },
+      };
+    });
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/marks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ studentId, examId, obtainedMark: value }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || t.saveError[language]);
+    } catch (err) {
+      console.error("Error saving mark:", err);
+      alert(t.saveError[language]);
+    } finally {
+      setSavingCell(null);
+    }
   };
 
   return (
@@ -163,7 +228,6 @@ export default function MarksPage() {
           animate="visible"
           className="flex-1 px-4 py-6 sm:px-8 md:px-12 lg:px-16"
         >
-          {/* Header */}
           <motion.div
             variants={itemVariants}
             className={`mb-8 ${isArabic ? "text-right" : "text-left"}`}
@@ -176,221 +240,187 @@ export default function MarksPage() {
             </p>
           </motion.div>
 
-          {/* Card Container */}
           <motion.div
             variants={itemVariants}
             className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
           >
-            {/* Tabs */}
-            <div className="flex overflow-x-auto border-b border-slate-200 bg-[#F8F9FE] px-2">
-              <button
-                onClick={() => setActiveTab("primary")}
-                className={`flex items-center gap-2 whitespace-nowrap px-6 py-4 text-sm font-semibold transition-colors ${
-                  activeTab === "primary"
-                    ? "border-t-4 border-primary bg-white text-primary"
-                    : "text-slate-500 hover:text-primary"
-                }`}
-              >
+            <div className="flex flex-col gap-3 border-b border-slate-200 bg-[#F8F9FE] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-primary">
                 <Book className="h-4 w-4" />
-                {t.primaryTab[language]}
-              </button>
-              <button
-                onClick={() => setActiveTab("secondary")}
-                className={`flex items-center gap-2 whitespace-nowrap px-6 py-4 text-sm font-semibold transition-colors ${
-                  activeTab === "secondary"
-                    ? "border-t-4 border-primary bg-white text-primary"
-                    : "text-slate-500 hover:text-primary"
-                }`}
-              >
-                <BookOpen className="h-4 w-4" />
-                {t.secondaryTab[language]}
+                <select
+                  value={selectedClassId ?? ""}
+                  onChange={(e) => setSelectedClassId(e.target.value)}
+                  disabled={isLoadingClasses || classes.length === 0}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-primary outline-none focus:border-primary disabled:opacity-50"
+                >
+                  {classes.length === 0 && (
+                    <option value="">{t.selectClass[language]}</option>
+                  )}
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {isArabic ? cls.nameAr : cls.nameEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button className="flex items-center justify-center gap-2 rounded-lg border-2 border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-slate-50">
+                <Download className="h-4 w-4" />
+                {t.exportClass[language]}
               </button>
             </div>
 
-            {/* Tab Panels Content Window */}
-            <div className="overflow-hidden">
-              <AnimatePresence mode="wait">
-                {activeTab === "primary" && (
-                  <motion.div
-                    key="primary-tab"
-                    initial={{ opacity: 0, x: isArabic ? 10 : -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: isArabic ? -10 : 10 }}
-                    transition={{ duration: 0.2 }}
-                    className="p-4 sm:p-6"
+            <div className="p-4 sm:p-6">
+              {isLoadingClasses ? (
+                <div className="py-10 text-center text-sm text-slate-400">
+                  {t.loadingClasses[language]}
+                </div>
+              ) : classesError ? (
+                <div className="py-10 text-center text-sm text-red-500">
+                  {classesError}
+                </div>
+              ) : classes.length === 0 ? (
+                <div className="py-10 text-center text-sm text-slate-400">
+                  {t.noClasses[language]}
+                </div>
+              ) : isLoadingMarksheet || !marksheet ? (
+                <div className="py-10 text-center text-sm text-slate-400">
+                  {t.loadingMarksheet[language]}
+                </div>
+              ) : marksheet.students.length === 0 ? (
+                <div className="py-10 text-center text-sm text-slate-400">
+                  {t.noStudents[language]}
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table
+                    className="w-full min-w-225 border-collapse text-left"
+                    dir={isArabic ? "rtl" : "ltr"}
                   >
-                    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <h2 className="font-serif text-xl font-semibold text-primary">
-                        {t.className[language]}
-                      </h2>
-                      <button className="flex items-center justify-center gap-2 rounded-lg border-2 border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-slate-50">
-                        <Download className="h-4 w-4" />
-                        {t.exportClass[language]}
-                      </button>
-                    </div>
+                    <thead>
+                      <tr className="bg-primary text-white">
+                        <th
+                          rowSpan={2}
+                          className="border-r border-white/10 p-4 text-sm font-semibold"
+                        >
+                          {t.studentName[language]}
+                        </th>
+                        {TERMS.map((term) => (
+                          <th
+                            key={term}
+                            colSpan={Math.max(subjectsInClass.length, 1)}
+                            className="border-r border-white/10 border-b p-2 text-center text-sm font-semibold"
+                          >
+                            {t.term[language]} {term.replace("Term", "")}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="bg-[#27374d] text-[10px] uppercase tracking-wider text-white/80">
+                        {TERMS.map((term) =>
+                          subjectsInClass.length > 0 ? (
+                            subjectsInClass.map((s, i) => (
+                              <th
+                                key={`${term}-${s.id}`}
+                                className={`p-2 text-center ${
+                                  i === subjectsInClass.length - 1
+                                    ? "border-r border-white/20"
+                                    : "border-r border-white/10"
+                                }`}
+                              >
+                                {isArabic ? s.nameAr : s.nameEn}
+                              </th>
+                            ))
+                          ) : (
+                            <th
+                              key={term}
+                              className="border-r border-white/20 p-2"
+                            />
+                          ),
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {marksheet.students.map((student, index) => (
+                        <tr
+                          key={student.id}
+                          className={`transition-colors hover:bg-slate-50 ${
+                            index % 2 === 1 ? "bg-slate-50/50" : ""
+                          }`}
+                        >
+                          <td className="border-r border-slate-100 p-4">
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-primary">
+                                {isArabic ? student.nameAr : student.nameEn}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                {isArabic ? student.nameEn : student.nameAr}
+                              </span>
+                            </div>
+                          </td>
 
-                    <div className="overflow-x-auto rounded-lg border border-slate-200">
-                      <table
-                        className="w-full min-w-225 border-collapse text-left"
-                        dir={isArabic ? "rtl" : "ltr"}
-                      >
-                        <thead>
-                          <tr className="bg-primary text-white">
-                            <th
-                              rowSpan={2}
-                              className="border-r border-white/10 p-4 text-sm font-semibold"
-                            >
-                              {t.studentName[language]}
-                            </th>
-                            <th
-                              colSpan={4}
-                              className="border-r border-white/10 border-b p-2 text-center text-sm font-semibold"
-                            >
-                              {t.term[language]} 1
-                            </th>
-                            <th
-                              colSpan={4}
-                              className="border-r border-white/10 border-b p-2 text-center text-sm font-semibold"
-                            >
-                              {t.term[language]} 2
-                            </th>
-                            <th
-                              colSpan={4}
-                              className="border-r border-white/10 border-b p-2 text-center text-sm font-semibold"
-                            >
-                              {t.term[language]} 3
-                            </th>
-                            <th
-                              rowSpan={2}
-                              className="border-r border-white/10 p-4 text-center text-sm font-semibold"
-                            >
-                              {t.finalGrade[language]}
-                            </th>
-                            <th
-                              rowSpan={2}
-                              className="p-4 text-right text-sm font-semibold"
-                            >
-                              {t.actions[language]}
-                            </th>
-                          </tr>
-                          <tr className="bg-[#27374d] text-[10px] uppercase tracking-wider text-white/80">
-                            {[1, 2, 3].map((term) =>
-                              subjects.map((s, i) => (
-                                <th
-                                  key={`${term}-${s.key}`}
-                                  className={`p-2 text-center ${i === subjects.length - 1 ? "border-r border-white/20" : "border-r border-white/10"}`}
-                                >
-                                  {isArabic ? s.ar : s.en}
-                                </th>
-                              )),
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {primaryStudents.map((student, index) => (
-                            <tr
-                              key={student.id}
-                              className={`transition-colors hover:bg-slate-50 ${index % 2 === 1 ? "bg-slate-50/50" : ""}`}
-                            >
-                              <td className="border-r border-slate-100 p-4">
-                                <div className="flex flex-col">
-                                  <span className="font-semibold text-primary">
-                                    {isArabic ? student.nameAr : student.nameEn}
-                                  </span>
-                                  <span className="text-xs text-slate-400">
-                                    {isArabic ? student.nameEn : student.nameAr}
-                                  </span>
-                                </div>
-                              </td>
-
-                              {[
-                                student.term1,
-                                student.term2,
-                                student.term3,
-                              ].map((term, termIndex) =>
-                                term ? (
-                                  term.map((score, scoreIndex) => (
-                                    <td
-                                      key={`${termIndex}-${scoreIndex}`}
-                                      className={`p-2 text-center text-xs ${
-                                        scoreIndex === subjects.length - 1
-                                          ? "border-r border-slate-200"
-                                          : "border-r border-slate-100"
-                                      }`}
-                                    >
-                                      {score}
-                                    </td>
-                                  ))
-                                ) : (
+                          {TERMS.map((term) =>
+                            subjectsInClass.map((subject, i) => {
+                              const exam = examFor(subject.id, term);
+                              if (!exam) {
+                                return (
                                   <td
-                                    key={`empty-${termIndex}`}
-                                    colSpan={4}
-                                    className="border-r border-slate-200 p-2 text-center"
+                                    key={`${term}-${subject.id}`}
+                                    className={`p-2 text-center text-xs italic text-slate-300 ${
+                                      i === subjectsInClass.length - 1
+                                        ? "border-r border-slate-200"
+                                        : "border-r border-slate-100"
+                                    }`}
                                   >
-                                    <span className="text-xs font-semibold italic text-secondary">
-                                      {t.pending[language]}
-                                    </span>
+                                    {t.noExam[language]}
                                   </td>
-                                ),
-                              )}
-
-                              <td className="border-r border-slate-100 p-4 text-center">
-                                {student.finalGrade ? (
-                                  <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-bold text-white">
-                                    {student.finalGrade} ({student.finalPercent}
-                                    %)
-                                  </span>
-                                ) : (
-                                  <span className="font-serif text-lg text-primary">
-                                    -
-                                  </span>
-                                )}
-                              </td>
-
-                              <td className="p-4 text-right">
-                                <button
-                                  onClick={() =>
-                                    setExportTarget(
-                                      isArabic
-                                        ? student.nameAr
-                                        : student.nameEn,
-                                    )
-                                  }
-                                  className="rounded-lg p-2 text-primary transition hover:bg-slate-100 hover:text-secondary"
-                                  title="Export PDF"
+                                );
+                              }
+                              const key = `${student.id}-${exam.id}`;
+                              const currentValue =
+                                marksheet.marks[student.id]?.[exam.id];
+                              return (
+                                <td
+                                  key={key}
+                                  className={`p-1 text-center ${
+                                    i === subjectsInClass.length - 1
+                                      ? "border-r border-slate-200"
+                                      : "border-r border-slate-100"
+                                  }`}
                                 >
-                                  <FileDown className="h-5 w-5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === "secondary" && (
-                  <motion.div
-                    key="secondary-tab"
-                    initial={{ opacity: 0, x: isArabic ? 10 : -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: isArabic ? -10 : 10 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex flex-col items-center gap-3 p-12 text-center"
-                  >
-                    <FolderOpen className="h-14 w-14 text-slate-300" />
-                    <h3 className="font-serif text-lg font-semibold text-primary">
-                      {isArabic
-                        ? "بيانات المرحلة المتوسطة"
-                        : "Intermediate Data"}
-                    </h3>
-                    <p className="max-w-md text-sm text-slate-500">
-                      {t.emptyIntermediate[language]}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={exam.maxMark}
+                                    defaultValue={currentValue ?? ""}
+                                    disabled={savingCell === key}
+                                    onBlur={(e) => {
+                                      const raw = e.target.value;
+                                      if (raw === "") return;
+                                      const value = Number(raw);
+                                      if (
+                                        Number.isNaN(value) ||
+                                        value === currentValue
+                                      )
+                                        return;
+                                      handleMarkChange(
+                                        student.id,
+                                        exam.id,
+                                        value,
+                                      );
+                                    }}
+                                    className="w-16 rounded border border-slate-200 px-1 py-1 text-center text-xs outline-none focus:border-primary disabled:opacity-50"
+                                    title={`/ ${exam.maxMark}`}
+                                  />
+                                </td>
+                              );
+                            }),
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.main>

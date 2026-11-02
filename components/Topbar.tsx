@@ -41,7 +41,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         >
           <Globe className="h-4 w-4" />
           <span className="hidden xs:inline">
-            Language: {language === "ar" ? "AR/EN" : "EN/AR"}
+            Language: {language === "ar" ? "EN/AR" : "AR/EN"}
           </span>
           <span className="xs:hidden">{language === "ar" ? "AR" : "EN"}</span>
         </motion.button>

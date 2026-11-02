@@ -1,20 +1,38 @@
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { jwtVerify, SignJWT } from "jose";
+import { cookies } from "next/headers";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
-
-export function hashPassword(password: string) {
-  return bcrypt.hash(password, 10);
+interface UserSession {
+  user_id: string;
+  user_nameEn: string;
+  user_nameAr: string;
+  user_email: string;
+  role: "Admin" | "SuperAdmin";
 }
 
-export function comparePassword(password: string, hashedPassword: string) {
-  return bcrypt.compare(password, hashedPassword);
+const secret = new TextEncoder().encode(process.env.JWT_SECRET_KEY);
+
+export async function createToken(payload: any) {
+  return await new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(secret);
 }
 
-export function signJwt(payload: object) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+export async function verifyToken(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    return payload;
+  } catch (error) {
+    return null;
+  }
 }
 
-export function verifyJwt(token: string) {
-  return jwt.verify(token, JWT_SECRET) as { sub: string; role?: string };
+export async function getSession(): Promise<UserSession | null> {
+  const storedCookie = await cookies();
+  const token = storedCookie.get("token")?.value;
+
+  if (!token) return null;
+  const payload = await verifyToken(token);
+  return payload as UserSession | null;
 }

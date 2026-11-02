@@ -1,27 +1,43 @@
-import { Pool } from "pg";
+import { Pool, PoolClient } from "pg";
 
-let pool: Pool | null = null;
+declare global {
+  var postgresPool: Pool | undefined;
+}
 
-export function getDbPool() {
-  if (!pool) {
-    const connectionString =
-      process.env.POSTGRES_URL ?? process.env.DATABASE_URL;
+export function getDbPool(): Pool {
+  if (!global.postgresPool) {
+    const connectionString = process.env.DATABASE_URL;
 
     if (!connectionString) {
       throw new Error(
-        "PostgreSQL connection string is not configured. Set POSTGRES_URL or DATABASE_URL.",
+        "PostgreSQL connection string is missing. Please set DATABASE_URL in your .env file.",
       );
     }
 
-    pool = new Pool({
+    const isLocalhost =
+      connectionString.includes("localhost") ||
+      connectionString.includes("127.0.0.1");
+
+    const newPool = new Pool({
       connectionString,
-      ssl:
-        connectionString.includes("localhost") ||
-        connectionString.includes("127.0.0.1")
-          ? false
-          : { rejectUnauthorized: false },
+      ssl: isLocalhost ? false : { rejectUnauthorized: false },
     });
+
+    if (process.env.NODE_ENV !== "production") {
+      global.postgresPool = newPool;
+    } else {
+      return newPool;
+    }
   }
 
-  return pool;
+  return global.postgresPool!;
 }
+
+export async function getDatabaseConnection(): Promise<PoolClient> {
+  return getDbPool().connect();
+}
+
+export default {
+  query: (...args: Parameters<Pool["query"]>) => getDbPool().query(...args),
+  connect: () => getDbPool().connect(),
+};

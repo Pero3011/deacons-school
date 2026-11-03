@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     const passwordHashed = await bcrypt.hash(body.password, 10);
-    const role = "Admin";
+    const role = body.role;
 
     // Single query inserts and returns the created user
     const insertResult = await connection.query(

@@ -2,10 +2,10 @@ import { jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
 
 interface UserSession {
-  user_id: string;
-  user_nameEn: string;
-  user_nameAr: string;
-  user_email: string;
+  userId: string;
+  userNameEn: string;
+  userNameAr: string;
+  userEmail: string;
   role: "Admin" | "SuperAdmin";
 }
 

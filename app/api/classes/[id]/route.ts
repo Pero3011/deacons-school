@@ -50,7 +50,6 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
 
-    console.log(id);
     connection = await getDatabaseConnection();
     await connection.query(
       `DELETE FROM "Classes" 

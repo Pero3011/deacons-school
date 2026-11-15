@@ -1,43 +1,40 @@
-import { Pool, PoolClient } from "pg";
+import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 
-declare global {
-  var postgresPool: Pool | undefined;
-}
+const globalForPg = globalThis as unknown as { postgresPool?: Pool };
 
 export function getDbPool(): Pool {
-  if (!global.postgresPool) {
+  if (!globalForPg.postgresPool) {
     const connectionString = process.env.DATABASE_URL;
 
     if (!connectionString) {
-      throw new Error(
-        "PostgreSQL connection string is missing. Please set DATABASE_URL in your .env file.",
-      );
+      throw new Error("DATABASE_URL is missing. Set it in your environment.");
     }
 
-    const isLocalhost =
-      connectionString.includes("localhost") ||
-      connectionString.includes("127.0.0.1");
+    const isLocal =
+      connectionString.includes("localhost") || connectionString.includes("127.0.0.1");
 
-    const newPool = new Pool({
+    globalForPg.postgresPool = new Pool({
       connectionString,
-      ssl: isLocalhost ? false : { rejectUnauthorized: false },
+      ssl: isLocal ? false : { rejectUnauthorized: true },
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
     });
-
-    if (process.env.NODE_ENV !== "production") {
-      global.postgresPool = newPool;
-    } else {
-      return newPool;
-    }
   }
 
-  return global.postgresPool!;
+  return globalForPg.postgresPool;
 }
 
 export async function getDatabaseConnection(): Promise<PoolClient> {
   return getDbPool().connect();
 }
 
-export default {
-  query: (...args: Parameters<Pool["query"]>) => getDbPool().query(...args),
-  connect: () => getDbPool().connect(),
+const db = {
+  query: <R extends QueryResultRow = QueryResultRow>(
+    queryText: string,
+    values?: unknown[],
+  ): Promise<QueryResult<R>> => getDbPool().query<R>(queryText, values),
+  connect: (): Promise<PoolClient> => getDbPool().connect(),
 };
+
+export default db;

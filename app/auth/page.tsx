@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { CircleAlert } from "lucide-react";
 import LanguageButton from "../../components/LanguageButton";
@@ -8,21 +9,14 @@ import { useLanguage } from "../../context/LanguageContext";
 import { motion } from "framer-motion";
 
 export default function Auth() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { language } = useLanguage();
 
-  const containerVariants = {
-    hidden: {},
-    show: {
-      transition: {
-        staggerChildren: 0.12,
-        delayChildren: 0.15,
-      },
-    },
-  };
+  const modernEasing = [0.22, 1, 0.36, 1] as const;
 
   const itemVariants = {
     hidden: {
@@ -36,7 +30,7 @@ export default function Auth() {
       scale: 1,
       transition: {
         duration: 0.6,
-        ease: [0.22, 1, 0.36, 1] as any, // modern easing
+        ease: modernEasing,
       },
     },
   };
@@ -51,7 +45,7 @@ export default function Auth() {
       x: 0,
       transition: {
         duration: 0.8,
-        ease: [0.22, 1, 0.36, 1] as any,
+        ease: modernEasing,
       },
     },
   };
@@ -66,7 +60,7 @@ export default function Auth() {
       x: 0,
       transition: {
         duration: 0.8,
-        ease: [0.22, 1, 0.36, 1] as any,
+        ease: modernEasing,
       },
     },
   };
@@ -144,7 +138,7 @@ export default function Auth() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/auth", {
+      const response = await fetch("/api/auth/signIn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -152,8 +146,8 @@ export default function Auth() {
 
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Authentication failed.");
+      if (!response.ok) {
+        throw new Error(data.error || "Authentication failed.");
       }
 
       setMessage(
@@ -161,6 +155,8 @@ export default function Auth() {
           ? "تم تسجيل الدخول بنجاح."
           : "Signed in successfully.",
       );
+
+      router.replace("/Home");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Authentication failed.",

@@ -1,92 +1,57 @@
-import { getSession } from "@/lib/auth";
-import { getDatabaseConnection } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
+import db from "@/lib/db";
+import { requireSession } from "@/lib/auth";
+import { cleanString, handleError, jsonError, readJson } from "@/lib/api";
 
 export async function GET() {
-  let connection;
   try {
-    const session = await getSession();
+    const { session, error } = await requireSession();
+    if (error) return error;
 
-    if (!session)
-      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    const params: string[] = [];
+    let where = "";
 
-    const currentUser = session.userId;
-    const currentUserRole = session.role;
-
-    connection = await getDatabaseConnection();
-
-    let query = `SELECT "id", "nameAr", "nameEn", "adminId", "created_at" FROM "Classes"`;
-    let queryParams = [];
-
-    // Filter by adminId if the current user is an Admin
-    if (currentUserRole === "Admin") {
-      query += ` WHERE "adminId" = $1`;
-      queryParams.push(currentUser);
+    // Admins only see their own classes; SuperAdmin sees all.
+    if (session.role === "Admin") {
+      where = `WHERE "adminId" = $1`;
+      params.push(session.userId);
     }
 
-    const result = await connection.query(query+`ORDER BY "created_at"`, queryParams);
-    const classes = result.rows;
-
-    if (classes.length === 0) {
-      return NextResponse.json(
-        { error: "No class available!" },
-        { status: 404 },
-      );
-    }
-
-    return NextResponse.json(classes);
-  } catch (error) {
-    console.error("Class fetching failed:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
+    const result = await db.query(
+      `SELECT "id", "nameAr", "nameEn", "adminId", "created_at"
+       FROM "Classes" ${where} ORDER BY "created_at"`, // note the spaces: fixes $1ORDER
+      params,
     );
-  } finally {
-    connection?.release();
+
+    return NextResponse.json(result.rows); // an empty list is a valid 200, not a 404
+  } catch (error) {
+    return handleError(error, "GET /api/classes");
   }
 }
 
-export async function POST(request:NextRequest) {
-    let connection;
-    try {
-        const session = await getSession();
+export async function POST(request: NextRequest) {
+  try {
+    const { session, error } = await requireSession();
+    if (error) return error;
 
-        if (!session)
-          return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    const body = await readJson<Record<string, unknown>>(request);
+    const nameAr = cleanString(body?.nameAr, 100);
+    const nameEn = cleanString(body?.nameEn, 100);
 
-        const currentUser = session.userId;
+    if (!nameAr || !nameEn) return jsonError("nameAr and nameEn are required", 400);
 
-        const body = await request.json();
-        if (!body.nameAr || !body.nameEn) {
-          return NextResponse.json(
-            { error: "Missing required fields" },
-            { status: 400 },
-          );
-        }
+    const result = await db.query(
+      `INSERT INTO "Classes" ("nameAr", "nameEn", "adminId")
+       VALUES ($1, $2, $3)
+       RETURNING "id", "nameAr", "nameEn", "adminId", "created_at"`,
+      [nameAr, nameEn, session.userId],
+    );
 
-        //Insert in the Classes table
-        connection = await getDatabaseConnection()
-        const query = `INSERT INTO "Classes" ("nameAr", "nameEn", "adminId") VALUES ($1, $2, $3)`;
-
-      await connection.query(query, [body.nameAr, body.nameEn, currentUser])
-      
-      const response = NextResponse.json({
-        message: "New Class added successfully",
-        user: {
-          adminId: currentUser,
-          nameAr: body.nameAr,
-          nameEn: body.nameEn,
-        },
-      });
-
-      return response;
-    } catch (error) {
-        console.error("Class Insertion failed:", error);
-        return NextResponse.json(
-          { error: "Internal Server Error" },
-          { status: 500 },
-        );
-    } finally {
-        connection?.release();
-    }
+    return NextResponse.json(
+      { message: "Class created", class: result.rows[0] },
+      { status: 201 },
+    );
+  } catch (error) {
+    return handleError(error, "POST /api/classes");
+  }
 }

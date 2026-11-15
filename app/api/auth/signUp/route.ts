@@ -1,85 +1,76 @@
-import { NextResponse } from "next/server";
-import { getDatabaseConnection } from "@/lib/db";
-import bcrypt from "bcrypt";
-import { createToken } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import db from "@/lib/db";
+import { createToken, getSession, setSessionCookie, type Role } from "@/lib/auth";
+import { cleanString, handleError, jsonError, readJson } from "@/lib/api";
 
-export async function POST(request: Request) {
-  let connection;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function POST(request: NextRequest) {
   try {
-    connection = await getDatabaseConnection();
-    const body = await request.json();
+    const body = await readJson<Record<string, unknown>>(request);
+    if (!body) return jsonError("Invalid JSON body", 400);
 
-    if (!body.nameAr || !body.nameEn || !body.email || !body.password) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 },
-      );
+    const nameAr = cleanString(body.nameAr, 100);
+    const nameEn = cleanString(body.nameEn, 100);
+    const email = cleanString(body.email, 254)?.toLowerCase() ?? null;
+    const password = typeof body.password === "string" ? body.password : "";
+
+    if (!nameAr || !nameEn || !email || !password) {
+      return jsonError("Missing required fields", 400);
+    }
+    if (!EMAIL_RE.test(email)) return jsonError("Invalid email format", 400);
+    if (password.length < 8 || Buffer.byteLength(password, "utf8") > 72) {
+      return jsonError("Password must be at least 8 characters (72 bytes max)", 400);
     }
 
-    //Preprocessing on the data
-    const nameAr = String(body.nameAr).trim();
-    const nameEn = String(body.nameEn).trim();
-    const emailNormalized = String(body.email).trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(emailNormalized)) {
-      return NextResponse.json(
-        { error: "Invalid Email Format" },
-        { status: 400 },
-      );
+    // Never trust a client-supplied role.
+    const caller = await getSession();
+    const role: Role = body.role === "SuperAdmin" ? "SuperAdmin" : "Admin";
+    if (role === "SuperAdmin" && caller?.role !== "SuperAdmin") {
+      return jsonError("Forbidden", 403);
     }
 
-    const passwordHashed = await bcrypt.hash(body.password, 10);
-    const role = body.role;
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    // Single query inserts and returns the created user
-    const insertResult = await connection.query(
+    const result = await db.query(
       `INSERT INTO "Users" ("nameAr", "nameEn", "email", "password_hash", "role")
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING "id", "nameAr", "email", "nameEn", "role"`,
-      [nameAr, nameEn, emailNormalized, passwordHashed, role],
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING "id", "nameAr", "nameEn", "email", "role"`,
+      [nameAr, nameEn, email, passwordHash, role],
     );
 
-    const newUserRow = insertResult.rows[0];
-    const userId = String(newUserRow.user_id);
+    const user = result.rows[0];
+    const userId = String(user.id); // was user_id (undefined)
 
-    const token = await createToken({
-      userId: userId,
-      userNameAr: newUserRow.nameAr,
-      userNameEn: newUserRow.nameEn,
-      userEmail: newUserRow.email,
-      role: newUserRow.role,
-    });
-
-    const response = NextResponse.json({
-      message: "Login successful",
-      user: {
-        id: userId,
-        email: newUserRow.email,
-        nameAr: newUserRow.nameAr,
-        nameEn: newUserRow.nameEn,
-        role: newUserRow.role,
+    const response = NextResponse.json(
+      {
+        message: "Account created",
+        user: {
+          id: userId,
+          email: user.email,
+          nameAr: user.nameAr,
+          nameEn: user.nameEn,
+          role: user.role,
+        },
       },
-    });
+      { status: 201 },
+    );
 
-    response.cookies.set("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 15 * 60,
-      path: "/",
-    });
+    // Public self-signup logs the new user in. A SuperAdmin creating an account for someone else must not.
+    if (caller?.role !== "SuperAdmin") {
+      const token = await createToken({
+        userId,
+        userNameAr: user.nameAr,
+        userNameEn: user.nameEn,
+        userEmail: user.email,
+        role: user.role,
+      });
+      setSessionCookie(response, token);
+    }
 
     return response;
-  } catch (error: unknown) {
-    console.error("Signup Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
-  } finally {
-    if (connection) {
-      connection.release();
-    }
+  } catch (error) {
+    return handleError(error, "POST /api/auth/signUp");
   }
 }

@@ -308,7 +308,7 @@ export default function AdminHome() {
                         </div>
                       ) : (
                         <div className="rounded-3xl border border-dashed border-slate-300 bg-white/80 px-4 py-8 text-center text-sm text-slate-500">
-                          No students added yet. Click "Add Student" to begin.
+                          No students added yet. Click &quot;Add Student&quot; to begin.
                         </div>
                       )}
                     </div>

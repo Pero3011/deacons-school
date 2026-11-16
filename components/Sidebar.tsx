@@ -13,6 +13,9 @@ import {
   X,
   Eye,
   EyeOff,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -27,23 +30,94 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const [showAdminRegisterModal, setShowAdminRegisterModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [fullName, setFullName] = useState("");
+  const [nameEn, setNameEn] = useState("");
+  const [nameAr, setNameAr] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<"Admin" | "SuperAdmin">("Admin");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitSuccess, setSubmitSuccess] = useState("");
 
   const resetAdminForm = () => {
-    setFullName("");
+    setNameEn("");
+    setNameAr("");
     setEmail("");
     setPassword("");
     setConfirmPassword("");
+    setRole("Admin");
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setSubmitError("");
+    setSubmitSuccess("");
+    setIsSubmitting(false);
   };
 
   const closeAdminRegisterModal = () => {
     setShowAdminRegisterModal(false);
     resetAdminForm();
+  };
+
+  const handleSubmitAdmin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSubmitError("");
+    setSubmitSuccess("");
+
+    if (!nameEn.trim() || !nameAr.trim() || !email.trim() || !password) {
+      setSubmitError("All fields are required.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setSubmitError("Please enter a valid email address.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setSubmitError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setSubmitError("Passwords do not match.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/auth/signUp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nameEn: nameEn.trim(),
+          nameAr: nameAr.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          role,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setSubmitError(data?.error || `Registration failed (${response.status})`);
+        return;
+      }
+
+      setSubmitSuccess("Admin registered successfully!");
+      setTimeout(() => {
+        closeAdminRegisterModal();
+      }, 1500);
+    } catch (err: unknown) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Network error. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const Links = [
@@ -201,99 +275,163 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 </button>
               </div>
 
-              <div className="space-y-4 px-6 py-6">
-                <label className="space-y-2 text-sm text-slate-700">
-                  Full Name
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(event) => setFullName(event.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
-                    placeholder="John Doe"
-                  />
-                </label>
+              <form onSubmit={handleSubmitAdmin}>
+                <div className="space-y-4 px-6 py-6 max-h-[75vh] overflow-y-auto">
+                  {submitError && (
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-700">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{submitError}</span>
+                    </div>
+                  )}
 
-                <label className="space-y-2 text-sm text-slate-700">
-                  Email
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
-                    placeholder="admin@example.com"
-                  />
-                </label>
+                  {submitSuccess && (
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>{submitSuccess}</span>
+                    </div>
+                  )}
 
-                <label className="space-y-2 text-sm text-slate-700">
-                  Password (Hashed)
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 pr-12 text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
-                      placeholder="Enter password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((current) => !current)}
-                      className="absolute inset-y-0 right-3 inline-flex items-center text-slate-500"
-                      aria-label="Toggle password visibility"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
-                    </button>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1.5 text-xs font-semibold text-slate-700">
+                      Full Name (EN)
+                      <input
+                        type="text"
+                        value={nameEn}
+                        onChange={(event) => {
+                          setNameEn(event.target.value);
+                          if (submitError) setSubmitError("");
+                        }}
+                        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
+                        placeholder="e.g. John Doe"
+                      />
+                    </label>
+
+                    <label className="space-y-1.5 text-xs font-semibold text-slate-700">
+                      Full Name (AR)
+                      <input
+                        type="text"
+                        dir="rtl"
+                        value={nameAr}
+                        onChange={(event) => {
+                          setNameAr(event.target.value);
+                          if (submitError) setSubmitError("");
+                        }}
+                        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white text-right"
+                        placeholder="مثال: يوحنا داود"
+                      />
+                    </label>
                   </div>
-                </label>
 
-                <label className="space-y-2 text-sm text-slate-700">
-                  Confirm Password (Hashed)
-                  <div className="relative">
+                  <label className="block space-y-1.5 text-xs font-semibold text-slate-700">
+                    Email Address
                     <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(event) =>
-                        setConfirmPassword(event.target.value)
-                      }
-                      className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 pr-12 text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
-                      placeholder="Confirm password"
+                      type="email"
+                      value={email}
+                      onChange={(event) => {
+                        setEmail(event.target.value);
+                        if (submitError) setSubmitError("");
+                      }}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
+                      placeholder="admin@example.com"
                     />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfirmPassword((current) => !current)
-                      }
-                      className="absolute inset-y-0 right-3 inline-flex items-center text-slate-500"
-                      aria-label="Toggle confirm password visibility"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
-                    </button>
-                  </div>
-                </label>
-              </div>
+                  </label>
 
-              <div className="flex flex-col gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end sm:items-center">
-                <button
-                  onClick={closeAdminRegisterModal}
-                  className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={closeAdminRegisterModal}
-                  className="rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-600"
-                >
-                  Register Admin
-                </button>
-              </div>
+                  <label className="block space-y-1.5 text-xs font-semibold text-slate-700">
+                    Role
+                    <select
+                      value={role}
+                      onChange={(e) => setRole(e.target.value as "Admin" | "SuperAdmin")}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
+                    >
+                      <option value="Admin">Admin</option>
+                      <option value="SuperAdmin">SuperAdmin</option>
+                    </select>
+                  </label>
+
+                  <label className="block space-y-1.5 text-xs font-semibold text-slate-700">
+                    Password (Min 8 characters)
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(event) => {
+                          setPassword(event.target.value);
+                          if (submitError) setSubmitError("");
+                        }}
+                        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
+                        placeholder="Enter password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((current) => !current)}
+                        className="absolute inset-y-0 right-3 inline-flex items-center text-slate-500"
+                        aria-label="Toggle password visibility"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </label>
+
+                  <label className="block space-y-1.5 text-xs font-semibold text-slate-700">
+                    Confirm Password
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(event) => {
+                          setConfirmPassword(event.target.value);
+                          if (submitError) setSubmitError("");
+                        }}
+                        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white"
+                        placeholder="Confirm password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword((current) => !current)
+                        }
+                        className="absolute inset-y-0 right-3 inline-flex items-center text-slate-500"
+                        aria-label="Toggle confirm password visibility"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end sm:items-center">
+                  <button
+                    type="button"
+                    onClick={closeAdminRegisterModal}
+                    disabled={isSubmitting}
+                    className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:opacity-75 shadow-sm"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Registering...</span>
+                      </>
+                    ) : (
+                      <span>Register Admin</span>
+                    )}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </motion.div>
         )}

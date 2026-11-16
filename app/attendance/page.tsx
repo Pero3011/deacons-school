@@ -307,7 +307,7 @@ export default function AttendancePage() {
     <div className="min-h-screen bg-[#F8F9FE]" dir={isArabic ? "rtl" : "ltr"}>
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-      <div className={`min-h-screen min-w-0 flex flex-col ${isArabic ? "md:pr-72" : "md:pl-72"}`}>
+      <div className={"min-h-screen min-w-0 flex flex-col md:pl-72"}>
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
         <motion.main
@@ -463,43 +463,6 @@ export default function AttendancePage() {
                   <span>{currentSession.shortDate}</span>
                 </div>
               </div>
-            </div>
-          </motion.div>
-
-          {/* 3 Summary Cards */}
-          <motion.div
-            variants={itemVariants}
-            className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3"
-          >
-            {/* Total Students */}
-            <div className="flex h-28 flex-col justify-between rounded-xl bg-[#112237] p-5 text-white shadow-xs">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                {isArabic ? "إجمالي الطلاب" : "TOTAL STUDENTS"}
-              </span>
-              <span className="font-serif text-3xl md:text-4xl font-bold">1,248</span>
-            </div>
-
-            {/* Average Attendance */}
-            <div className="flex h-28 flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                {isArabic ? "متوسط الحضور" : "AVERAGE ATTENDANCE"}
-              </span>
-              <div className="flex items-baseline gap-2">
-                <span className="font-serif text-3xl md:text-4xl font-bold text-slate-800">
-                  94%
-                </span>
-                <span className="text-sm font-semibold text-emerald-600">↑ 2%</span>
-              </div>
-            </div>
-
-            {/* Active Classes */}
-            <div className="flex h-28 flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                {isArabic ? "الفصول النشطة" : "ACTIVE CLASSES"}
-              </span>
-              <span className="font-serif text-3xl md:text-4xl font-bold text-[#112237]">
-                24
-              </span>
             </div>
           </motion.div>
 

@@ -1,4 +1,5 @@
-import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
+import { Pool, types, PoolClient, QueryResult, QueryResultRow } from "pg";
+types.setTypeParser(1082, (value) => value); // keep DATE as "YYYY-MM-DD"
 
 const globalForPg = globalThis as unknown as { postgresPool?: Pool };
 
@@ -11,7 +12,8 @@ export function getDbPool(): Pool {
     }
 
     const isLocal =
-      connectionString.includes("localhost") || connectionString.includes("127.0.0.1");
+      connectionString.includes("localhost") ||
+      connectionString.includes("127.0.0.1");
 
     globalForPg.postgresPool = new Pool({
       connectionString,
